@@ -226,7 +226,7 @@ body {
 
 .field-grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   gap: 10px;
 }
 
@@ -270,6 +270,11 @@ body {
 .field textarea {
   resize: vertical;
   min-height: 38px;
+}
+
+.field select:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .detail-actions {
@@ -421,6 +426,11 @@ body {
 .chip.remind-chip {
   background: #ede9fe;
   color: #6d28d9;
+}
+
+.chip.repeat-chip {
+  background: #ccfbf1;
+  color: #0f766e;
 }
 
 .task.done-item .chip {
@@ -663,4 +673,221 @@ body {
 
 .hidden {
   display: none !important;
+}
+
+/* ---------- 周趋势图 ---------- */
+.week-chart {
+  display: flex;
+  gap: 10px;
+  padding: 0 4px 14px;
+}
+
+.wc-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  height: 62px;
+}
+
+.wc-bar-wrap {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.wc-bar {
+  width: 18px;
+  max-width: 60%;
+  min-height: 2px;
+  background: #e0e7ff;
+  border-radius: 4px 4px 2px 2px;
+  position: relative;
+  transition: height 0.2s;
+}
+
+.wc-col.today .wc-bar {
+  background: var(--accent);
+}
+
+.wc-num {
+  position: absolute;
+  top: -15px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 10px;
+  color: var(--text-sub);
+}
+
+.wc-day {
+  font-size: 11px;
+  color: var(--text-sub);
+}
+
+.wc-col.today .wc-day {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+/* ---------- 设置：行内选择 ---------- */
+.select-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13.5px;
+  margin-top: 10px;
+}
+
+.select-row select {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 9px;
+  font-size: 13px;
+  font-family: inherit;
+  background: var(--card);
+  color: var(--text);
+  outline: none;
+}
+
+.data-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+/* ---------- 底部提示条 ---------- */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 28px;
+  transform: translateX(-50%);
+  max-width: 80%;
+  background: #262a36;
+  color: #e8eaf2;
+  padding: 10px 16px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
+  z-index: 200;
+  animation: fadeIn 0.18s ease;
+}
+
+.toast span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toast-btn {
+  border: none;
+  background: transparent;
+  color: #a5b4fc;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 2px 4px;
+  flex-shrink: 0;
+}
+
+.toast-btn:hover {
+  color: #c7d2fe;
+}
+
+/* ---------- 深色模式（跟随系统） ---------- */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --accent: #818cf8;
+    --accent-dark: #6366f1;
+    --bg: #16181f;
+    --card: #1f222b;
+    --text: #e8eaf2;
+    --text-sub: #9aa0b2;
+    --border: #2c3040;
+    --shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.25);
+  }
+
+  #quickInput::placeholder {
+    color: #4a5068;
+  }
+
+  .field input,
+  .field select,
+  .field textarea,
+  .cat-add input,
+  .select-row select {
+    background: #171a22;
+  }
+
+  .field input:focus,
+  .field select:focus,
+  .field textarea:focus {
+    background: var(--card);
+  }
+
+  .chip {
+    background: #262a36;
+  }
+
+  .chip.pri-high { background: rgba(239, 68, 68, 0.16); color: #f87171; }
+  .chip.pri-medium { background: rgba(245, 158, 11, 0.16); color: #fbbf24; }
+  .chip.pri-low { background: rgba(16, 185, 129, 0.16); color: #34d399; }
+  .chip.time-chip { background: rgba(99, 102, 241, 0.2); color: #a5b4fc; }
+  .chip.remind-chip { background: rgba(139, 92, 246, 0.2); color: #c4b5fd; }
+  .chip.repeat-chip { background: rgba(20, 184, 166, 0.18); color: #2dd4bf; }
+
+  .check {
+    border-color: #3a3f50;
+  }
+
+  .empty {
+    color: #3d4354;
+  }
+
+  .empty svg {
+    color: #333948;
+  }
+
+  .task-list.done .task {
+    background: #1a1d26;
+  }
+
+  .task:hover {
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35), 0 8px 24px rgba(0, 0, 0, 0.3);
+  }
+
+  .cat-item {
+    background: #262a36;
+    color: #b6bccd;
+  }
+
+  .cat-item button:hover {
+    background: #333948;
+  }
+
+  .switch {
+    background: #3a3f50;
+  }
+
+  .modal-mask {
+    background: rgba(0, 0, 0, 0.55);
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #333948;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #4a5068;
+  }
+
+  .wc-bar {
+    background: rgba(129, 140, 248, 0.22);
+  }
 }

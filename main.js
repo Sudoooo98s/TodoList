@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Tray, Menu, Notification, ipcMain, screen } = require('electron');
+const { app, BrowserWindow, Tray, Menu, Notification, ipcMain, screen, dialog, powerMonitor } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -18,6 +18,8 @@ const DEFAULT_DATA = {
     categories: ['工作', '生活', '学习'],
     floatEnabled: false,
     floatBounds: null,
+    autoLaunch: false,
+    autoCleanDays: 0,
   },
 };
 
@@ -28,6 +30,7 @@ let quitting = false;
 let data = null;
 let saveTimer = null;
 let floatBoundsTimer = null;
+let lastDay = null; // 用于跨天检测
 
 // ---------- 数据存储 ----------
 function loadData() {
@@ -81,6 +84,56 @@ function scheduleSave() {
 function ymd(d) {
   const p = (n) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+function addDays(dateStr, n) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return ymd(new Date(y, m - 1, d + n));
+}
+
+// ---------- 重复任务与历史清理 ----------
+function nextRepeatDate(dateStr, repeat) {
+  return repeat === 'weekly' ? addDays(dateStr, 7) : addDays(dateStr, 1);
+}
+
+// 未完成的重复任务跨天后滚动到今天，避免滞留在过去的日期
+function rolloverRepeatingTasks() {
+  const today = ymd(new Date());
+  let changed = false;
+  for (const t of data.tasks) {
+    if (t.repeat && !t.done && t.date < today) {
+      t.date = today;
+      t.reminded = false;
+      changed = true;
+    }
+  }
+  return changed;
+}
+
+// 按设置自动清理 N 天前已完成的任务，返回是否有清理
+function cleanOldDone() {
+  const days = Number(data.settings.autoCleanDays) || 0;
+  if (days <= 0) return false;
+  const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+  const before = data.tasks.length;
+  data.tasks = data.tasks.filter((t) => !(t.done && t.doneAt && t.doneAt < cutoff));
+  return data.tasks.length !== before;
+}
+
+// 跨天检测：强制广播一次，让悬浮窗/托盘提示切换到新的一天
+function checkDayRollover() {
+  const today = ymd(new Date());
+  if (lastDay === null) {
+    lastDay = today;
+    return;
+  }
+  if (today !== lastDay) {
+    lastDay = today;
+    const rolled = rolloverRepeatingTasks();
+    const cleaned = cleanOldDone();
+    if (rolled || cleaned) scheduleSave();
+    broadcast();
+  }
 }
 
 // ---------- 广播与托盘 ----------
@@ -235,13 +288,17 @@ function clampFloatIntoScreen() {
 // ---------- 设置 ----------
 function setSetting(patch) {
   data.settings = { ...data.settings, ...patch };
+  if ('autoLaunch' in patch) {
+    app.setLoginItemSettings({ openAtLogin: !!patch.autoLaunch });
+  }
   scheduleSave();
   if ('floatEnabled' in patch) applyFloat();
   broadcast();
 }
 
 // ---------- 提醒调度 ----------
-function tickReminders() {
+function tickReminders(resumeGrace = false) {
+  checkDayRollover();
   const now = Date.now();
   const today = ymd(new Date());
   let changed = false;
@@ -251,7 +308,9 @@ function tickReminders() {
     const taskTime = new Date();
     taskTime.setHours(hh, mm, 0, 0);
     const remindAt = taskTime.getTime() - t.remindLead * 60 * 1000;
-    const deadline = taskTime.getTime() + 60 * 1000; // 过点 1 分钟内仍可提醒，防止调度间隙漏发
+    // 过点 1 分钟内仍可提醒，防止调度间隙漏发；睡眠唤醒后放宽到 15 分钟补发错过的提醒
+    const graceMin = resumeGrace ? 15 : 1;
+    const deadline = taskTime.getTime() + graceMin * 60 * 1000;
     if (now >= remindAt && now <= deadline) {
       t.reminded = true;
       changed = true;
@@ -287,6 +346,7 @@ function registerIpc() {
       remindLead: task.remindLead == null || task.remindLead === '' ? null : Number(task.remindLead),
       priority: ['high', 'medium', 'low'].includes(task.priority) ? task.priority : 'medium',
       category: String(task.category || '').slice(0, 20),
+      repeat: ['daily', 'weekly'].includes(task.repeat) ? task.repeat : null,
       done: false,
       doneAt: null,
       reminded: false,
@@ -304,7 +364,7 @@ function registerIpc() {
     if (!t) return { ok: false, error: '任务不存在' };
     const scheduleFields = ['date', 'time', 'remindLead'];
     let scheduleChanged = false;
-    for (const key of ['title', 'note', 'date', 'time', 'remindLead', 'priority', 'category']) {
+    for (const key of ['title', 'note', 'date', 'time', 'remindLead', 'priority', 'category', 'repeat']) {
       if (key in patch) {
         let v = patch[key];
         if (key === 'title') v = String(v || '').trim().slice(0, 100);
@@ -312,6 +372,7 @@ function registerIpc() {
         else if (key === 'remindLead') v = v == null || v === '' ? null : Number(v);
         else if (key === 'priority') v = ['high', 'medium', 'low'].includes(v) ? v : t.priority;
         else if (key === 'category') v = String(v || '').slice(0, 20);
+        else if (key === 'repeat') v = ['daily', 'weekly'].includes(v) ? v : null;
         if (scheduleFields.includes(key) && v !== t[key]) scheduleChanged = true;
         t[key] = v;
       }
@@ -327,9 +388,41 @@ function registerIpc() {
     if (!t) return { ok: false, error: '任务不存在' };
     t.done = !t.done;
     t.doneAt = t.done ? Date.now() : null;
+    // 完成重复任务时生成下一次实例（按标题+日期去重，防止反复勾选产生重复）
+    if (t.done && t.repeat) {
+      const nextDate = nextRepeatDate(t.date, t.repeat);
+      const exists = data.tasks.some(
+        (x) => x.repeat === t.repeat && x.title === t.title && x.date === nextDate && !x.done
+      );
+      if (!exists) {
+        data.tasks.push({
+          ...t,
+          id: `${Date.now()}-r${Math.random().toString(36).slice(2, 6)}`,
+          date: nextDate,
+          done: false,
+          doneAt: null,
+          reminded: false,
+          createdAt: Date.now(),
+        });
+      }
+    }
     scheduleSave();
     broadcast();
     return { ok: true, task: t };
+  });
+
+  // 撤销删除：按原样恢复任务对象
+  ipcMain.handle('task:restore', (e, raw) => {
+    if (!raw || typeof raw !== 'object' || !raw.id || !String(raw.title || '').trim()) {
+      return { ok: false, error: '无效的任务数据' };
+    }
+    if (data.tasks.some((x) => x.id === raw.id)) {
+      return { ok: false, error: '任务已存在' };
+    }
+    data.tasks.push(raw);
+    scheduleSave();
+    broadcast();
+    return { ok: true };
   });
 
   ipcMain.handle('task:delete', (e, id) => {
@@ -345,6 +438,60 @@ function registerIpc() {
   ipcMain.handle('settings:set', (e, patch) => {
     setSetting(patch || {});
     return { ok: true, settings: data.settings };
+  });
+
+  // 导出全部数据到用户选择的 JSON 文件
+  ipcMain.handle('data:export', async () => {
+    const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+      title: '导出数据',
+      defaultPath: path.join(app.getPath('documents'), `dailylist-backup-${ymd(new Date()).replace(/-/g, '')}.json`),
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+    });
+    if (canceled || !filePath) return { ok: false, canceled: true };
+    try {
+      const payload = {
+        app: 'DailyList',
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        tasks: data.tasks,
+        settings: data.settings,
+      };
+      fs.writeFileSync(filePath, JSON.stringify(payload, null, 2), 'utf-8');
+      return { ok: true, path: filePath };
+    } catch (err) {
+      return { ok: false, error: '写入文件失败：' + err.message };
+    }
+  });
+
+  // 从 JSON 备份文件导入并覆盖当前数据
+  ipcMain.handle('data:import', async () => {
+    const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+      title: '导入数据',
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+      properties: ['openFile'],
+    });
+    if (canceled || filePaths.length === 0) return { ok: false, canceled: true };
+    try {
+      const parsed = JSON.parse(fs.readFileSync(filePaths[0], 'utf-8'));
+      const tasks = Array.isArray(parsed.tasks)
+        ? parsed.tasks.filter((t) => t && typeof t === 'object' && String(t.title || '').trim())
+        : null;
+      if (!tasks) return { ok: false, error: '文件格式不正确：缺少有效的 tasks 数组' };
+      const settings = {
+        ...DEFAULT_DATA.settings,
+        ...(parsed.settings && typeof parsed.settings === 'object' ? parsed.settings : {}),
+      };
+      data = { tasks, settings };
+      if ('autoLaunch' in settings) app.setLoginItemSettings({ openAtLogin: !!settings.autoLaunch });
+      lastDay = ymd(new Date());
+      rolloverRepeatingTasks();
+      cleanOldDone();
+      scheduleSave();
+      broadcast();
+      return { ok: true, count: data.tasks.length };
+    } catch (err) {
+      return { ok: false, error: '导入失败：' + err.message };
+    }
   });
 
   ipcMain.handle('float:close', () => {
@@ -382,6 +529,9 @@ if (!gotLock) {
     app.setAppUserModelId('com.dailylist.app');
     if (fs.existsSync(DATA_DIR) === false) fs.mkdirSync(DATA_DIR, { recursive: true });
     loadData();
+    lastDay = ymd(new Date());
+    rolloverRepeatingTasks();
+    cleanOldDone();
     Menu.setApplicationMenu(null);
     registerIpc();
 
@@ -393,6 +543,12 @@ if (!gotLock) {
 
     tickReminders();
     setInterval(tickReminders, 20 * 1000);
+
+    // 睡眠唤醒后立即补一次提醒检查，补发错过的提醒
+    powerMonitor.on('resume', () => {
+      checkDayRollover();
+      tickReminders(true);
+    });
   });
 
   app.on('before-quit', () => {

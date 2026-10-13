@@ -42,6 +42,9 @@
       </div>
     </section>
 
+    <!-- 近 7 天完成趋势 -->
+    <section id="weekChart" class="week-chart"></section>
+
     <section class="add-card">
       <div class="add-row">
         <input id="quickInput" type="text" placeholder="添加一件事，回车保存…" maxlength="100" autocomplete="off" />
@@ -71,6 +74,14 @@
               <option value="15" selected>提前 15 分钟</option>
               <option value="30">提前 30 分钟</option>
               <option value="60">提前 1 小时</option>
+            </select>
+          </label>
+          <label class="field">
+            <span class="field-label">重复</span>
+            <select id="fRepeat">
+              <option value="" selected>不重复</option>
+              <option value="daily">每天</option>
+              <option value="weekly">每周</option>
             </select>
           </label>
           <label class="field">
@@ -124,6 +135,23 @@
       </div>
       <div class="modal-body">
         <div class="setting-group">
+          <h3>常规</h3>
+          <label class="switch-row">
+            <span>开机自动启动</span>
+            <input type="checkbox" id="autoLaunchToggle" />
+            <span class="switch"></span>
+          </label>
+          <div class="select-row">
+            <span>自动清理已完成任务</span>
+            <select id="autoCleanSelect">
+              <option value="0" selected>不清理</option>
+              <option value="7">7 天前</option>
+              <option value="30">30 天前</option>
+              <option value="90">90 天前</option>
+            </select>
+          </div>
+        </div>
+        <div class="setting-group">
           <h3>分类管理</h3>
           <div id="catList" class="cat-list"></div>
           <div class="cat-add">
@@ -148,11 +176,22 @@
           <h3>数据</h3>
           <p class="hint break" id="dataPath">-</p>
           <p class="hint">数据保存在本机，每次保存自动备份一份（todo-data.backup.json）。</p>
+          <div class="data-actions">
+            <button id="btnExport" class="ghost-btn">导出数据…</button>
+            <button id="btnImport" class="ghost-btn">导入数据…</button>
+          </div>
         </div>
       </div>
     </div>
   </div>
 
+  <!-- 底部提示条（如删除撤销） -->
+  <div id="toast" class="toast hidden">
+    <span id="toastText"></span>
+    <button id="toastAction" class="toast-btn hidden"></button>
+  </div>
+
+  <script src="js/common.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>
