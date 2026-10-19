@@ -5,6 +5,7 @@ let dataFile = '';
 let viewDate = ymd(new Date()); // 当前查看的日期
 let editingId = null; // 正在编辑的任务 id
 let doneOpen = false;
+let searchQuery = ''; // 当前搜索关键词（小写）
 
 const $ = (id) => document.getElementById(id);
 
@@ -72,8 +73,11 @@ function renderCategoryOptions() {
   if ([...sel.options].some((o) => o.value === current)) sel.value = current;
 }
 
-function taskItemHTML(t) {
+function taskItemHTML(t, opts = {}) {
   const chips = [];
+  if (opts.showDate) {
+    chips.push(`<span class="chip date-chip">${fmtDateCN(t.date) || '今天'}</span>`);
+  }
   chips.push(`<span class="chip pri-${t.priority}">${PRI_LABEL[t.priority] || '中'}优先级</span>`);
   if (t.category) chips.push(`<span class="chip">${escapeHTML(t.category)}</span>`);
   if (t.time) chips.push(`<span class="chip time-chip">${CLOCK_SVG}${t.time}</span>`);
@@ -101,12 +105,33 @@ function taskItemHTML(t) {
 }
 
 function renderList() {
+  const ul = $('taskList');
+  ul.innerHTML = '';
+
+  // 搜索模式：跨日期匹配标题/备注/分类，未完成与已完成混排并显示日期
+  if (searchQuery) {
+    const matches = sortTasks(
+      tasks.filter((t) =>
+        `${t.title} ${t.note || ''} ${t.category || ''}`.toLowerCase().includes(searchQuery)
+      )
+    ).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+    for (const t of matches) {
+      const li = document.createElement('li');
+      li.className = `task p-${t.priority}` + (t.done ? ' done-item' : '');
+      li.dataset.id = t.id;
+      li.innerHTML = taskItemHTML(t, { showDate: true });
+      ul.appendChild(li);
+    }
+    $('emptyState').classList.toggle('hidden', matches.length > 0);
+    $('emptyText').textContent = '没有找到匹配的任务';
+    $('doneSection').classList.add('hidden');
+    return;
+  }
+
   const dayTasks = tasks.filter((t) => t.date === viewDate);
   const unfinished = sortTasks(dayTasks.filter((t) => !t.done));
   const done = sortTasks(dayTasks.filter((t) => t.done));
 
-  const ul = $('taskList');
-  ul.innerHTML = '';
   for (const t of unfinished) {
     const li = document.createElement('li');
     li.className = `task p-${t.priority}`;
@@ -315,17 +340,25 @@ for (const listId of ['taskList', 'doneList']) {
 
 // 日期导航
 $('prevDay').addEventListener('click', () => {
+  exitSearch();
   viewDate = addDays(viewDate, -1);
   render();
 });
 $('nextDay').addEventListener('click', () => {
+  exitSearch();
   viewDate = addDays(viewDate, 1);
   render();
 });
 $('todayBtn').addEventListener('click', () => {
+  exitSearch();
   viewDate = ymd(new Date());
   render();
 });
+
+function exitSearch() {
+  $('searchInput').value = '';
+  searchQuery = '';
+}
 
 // 已完成折叠
 $('doneToggle').addEventListener('click', () => {
@@ -336,6 +369,20 @@ $('doneToggle').addEventListener('click', () => {
 // 悬浮窗开关
 $('btnFloat').addEventListener('click', () => {
   window.api.setSettings({ floatEnabled: !settings.floatEnabled });
+});
+
+// 搜索（跨日期匹配，Ctrl+F 聚焦，Esc 清空）
+$('searchInput').addEventListener('input', (e) => {
+  searchQuery = e.target.value.trim().toLowerCase();
+  renderList();
+});
+$('searchInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    e.stopPropagation();
+    exitSearch();
+    renderList();
+    e.target.blur();
+  }
 });
 
 // ---------- 设置弹窗 ----------
@@ -427,9 +474,14 @@ document.addEventListener('keydown', (e) => {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'n') {
     e.preventDefault();
     $('quickInput').focus();
+  } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+    e.preventDefault();
+    $('searchInput').focus();
   } else if (e.key === 'Escape') {
     if (!$('settingsModal').classList.contains('hidden')) {
       $('settingsModal').classList.add('hidden');
+    } else if (editingId) {
+      resetForm(); // Esc 退出编辑模式
     }
   }
 });
@@ -440,6 +492,7 @@ function applyData(d) {
   settings = d.settings || settings;
   dataFile = d.dataFile || dataFile;
   render();
+  if (d.saveError) showToast(d.saveError);
 }
 
 async function init() {

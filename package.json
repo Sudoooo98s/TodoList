@@ -7,6 +7,8 @@
   "license": "MIT",
   "scripts": {
     "start": "electron .",
+    "test": "node --test tests/main-process.test.js",
+    "test:gui": "node tests/gui-smoke.js",
     "dist": "electron-builder --win",
     "icon": "node scripts/gen-icon.js"
   },

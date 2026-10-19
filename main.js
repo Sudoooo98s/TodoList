@@ -31,48 +31,37 @@ let data = null;
 let saveTimer = null;
 let floatBoundsTimer = null;
 let lastDay = null; // 用于跨天检测
+let lastSaveError = null;
 
 // ---------- 数据存储 ----------
 function loadData() {
-  try {
-    if (fs.existsSync(DATA_FILE)) {
-      const parsed = JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8'));
-      data = {
-        tasks: Array.isArray(parsed.tasks) ? parsed.tasks : [],
-        settings: { ...DEFAULT_DATA.settings, ...(parsed.settings || {}) },
-      };
-      return;
-    }
-  } catch (err) {
-    console.error('读取数据失败，尝试备份:', err);
+  // 主文件损坏时自动回退到备份
+  for (const file of [DATA_FILE, BACKUP_FILE]) {
     try {
-      if (fs.existsSync(BACKUP_FILE)) {
-        const parsed = JSON.parse(fs.readFileSync(BACKUP_FILE, 'utf-8'));
-        data = {
-          tasks: Array.isArray(parsed.tasks) ? parsed.tasks : [],
-          settings: { ...DEFAULT_DATA.settings, ...(parsed.settings || {}) },
-        };
-        return;
-      }
-    } catch (e) {
-      console.error('读取备份也失败:', e);
+      if (!fs.existsSync(file)) continue;
+      data = normalizeData(JSON.parse(fs.readFileSync(file, 'utf-8')));
+      return;
+    } catch (err) {
+      console.error(`读取数据失败(${file}):`, err);
     }
   }
   data = JSON.parse(JSON.stringify(DEFAULT_DATA));
 }
 
 function saveData() {
+  const hadSaveError = lastSaveError !== null;
   try {
     fs.mkdirSync(DATA_DIR, { recursive: true });
-    // 先备份上一份
-    if (fs.existsSync(DATA_FILE)) {
-      fs.copyFileSync(DATA_FILE, BACKUP_FILE);
-    }
     const tmp = DATA_FILE + '.tmp';
     fs.writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf-8');
     fs.renameSync(tmp, DATA_FILE);
+    fs.copyFileSync(DATA_FILE, BACKUP_FILE);
+    lastSaveError = null;
+    if (hadSaveError) broadcast();
   } catch (err) {
+    lastSaveError = '数据保存或备份失败，请检查磁盘空间和文件权限';
     console.error('保存数据失败:', err);
+    broadcast();
   }
 }
 
@@ -89,6 +78,104 @@ function ymd(d) {
 function addDays(dateStr, n) {
   const [y, m, d] = dateStr.split('-').map(Number);
   return ymd(new Date(y, m - 1, d + n));
+}
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+function isValidDate(s) {
+  if (!DATE_RE.test(s)) return false;
+  const [y, m, d] = s.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  return dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d;
+}
+
+function isValidTime(s) {
+  return typeof s === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(s);
+}
+
+const REMIND_LEADS = new Set([0, 5, 10, 15, 30, 60]);
+const AUTO_CLEAN_DAYS = new Set([0, 7, 30, 90]);
+
+function normalizeRemindLead(value) {
+  if (value == null || value === '') return null;
+  const lead = Number(value);
+  return REMIND_LEADS.has(lead) ? lead : null;
+}
+
+function generateTaskId(prefix = 't') {
+  return `${Date.now()}-${prefix}${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function assignUniqueId(task, existingIds, prefix = 'n') {
+  if (!existingIds.has(task.id)) {
+    existingIds.add(task.id);
+    return task.id;
+  }
+
+  let id = generateTaskId(prefix);
+  while (existingIds.has(id)) id = generateTaskId(prefix);
+  existingIds.add(id);
+  task.id = id;
+  return id;
+}
+
+// 规范化单条任务：修复历史/导入数据中的缺字段与非法值，防止排序 NaN、重复任务生成 NaN 日期等问题
+function normalizeTask(raw, idx = 0) {
+  const r = raw && typeof raw === 'object' ? raw : {};
+  const time = isValidTime(r.time) ? r.time : null;
+  const remindLead = time ? normalizeRemindLead(r.remindLead) : null;
+  const done = !!r.done;
+  return {
+    id: typeof r.id === 'string' && r.id ? r.id : generateTaskId(),
+    title: String(r.title || '').trim().slice(0, 100),
+    note: String(r.note || '').slice(0, 500),
+    date: isValidDate(r.date) ? r.date : ymd(new Date()),
+    time,
+    remindLead,
+    priority: ['high', 'medium', 'low'].includes(r.priority) ? r.priority : 'medium',
+    category: String(r.category || '').slice(0, 20),
+    repeat: ['daily', 'weekly'].includes(r.repeat) ? r.repeat : null,
+    done,
+    doneAt: done && Number.isFinite(Number(r.doneAt)) ? Number(r.doneAt) : null,
+    reminded: !!r.reminded,
+    createdAt: Number.isFinite(Number(r.createdAt)) ? Number(r.createdAt) : Date.now(),
+  };
+}
+
+function normalizeCategories(values, fallback = []) {
+  if (!Array.isArray(values)) return [...fallback];
+  return [...new Set(values.map((c) => String(c).trim().slice(0, 20)).filter(Boolean))].slice(0, 50);
+}
+
+function normalizeFloatBounds(bounds) {
+  if (!bounds || !Number.isFinite(bounds.x) || !Number.isFinite(bounds.y)) return null;
+  return { x: Math.round(bounds.x), y: Math.round(bounds.y) };
+}
+
+// 规范化设置：防止导入文件中的非法结构污染运行时
+function normalizeSettings(s) {
+  const src = s && typeof s === 'object' ? s : {};
+  const autoCleanDays = Number(src.autoCleanDays);
+  return {
+    categories: normalizeCategories(src.categories, DEFAULT_DATA.settings.categories),
+    floatEnabled: !!src.floatEnabled,
+    autoLaunch: !!src.autoLaunch,
+    autoCleanDays: AUTO_CLEAN_DAYS.has(autoCleanDays) ? autoCleanDays : 0,
+    floatBounds: normalizeFloatBounds(src.floatBounds),
+  };
+}
+
+function normalizeData(parsed) {
+  const p = parsed && typeof parsed === 'object' ? parsed : {};
+  const tasks = (Array.isArray(p.tasks) ? p.tasks : [])
+    .map(normalizeTask)
+    .filter((t) => t.title);
+  const existingIds = new Set();
+  for (const task of tasks) assignUniqueId(task, existingIds);
+  return {
+    tasks,
+    settings: normalizeSettings(p.settings),
+  };
 }
 
 // ---------- 重复任务与历史清理 ----------
@@ -138,7 +225,7 @@ function checkDayRollover() {
 
 // ---------- 广播与托盘 ----------
 function payload() {
-  return { tasks: data.tasks, settings: data.settings, dataFile: DATA_FILE };
+  return { tasks: data.tasks, settings: data.settings, dataFile: DATA_FILE, saveError: lastSaveError };
 }
 
 function broadcast() {
@@ -244,8 +331,8 @@ function createFloatWindow() {
   } else {
     floatWindow.setPosition(sw - 320 - 16, sh - 520 - 16);
   }
-  // 记录拖动后的位置
-  floatWindow.on('moved', () => {
+  // 记录拖动后的位置（move 事件在 Windows 无边框窗口上比 moved 更可靠，配合防抖落盘）
+  floatWindow.on('move', () => {
     clearTimeout(floatBoundsTimer);
     floatBoundsTimer = setTimeout(() => {
       if (floatWindow && !floatWindow.isDestroyed()) {
@@ -286,13 +373,32 @@ function clampFloatIntoScreen() {
 }
 
 // ---------- 设置 ----------
+function normalizeSettingsPatch(patch) {
+  const src = patch && typeof patch === 'object' ? patch : {};
+  const out = {};
+  const current = data && data.settings ? data.settings : DEFAULT_DATA.settings;
+
+  if (Array.isArray(src.categories)) {
+    out.categories = normalizeCategories(src.categories, current.categories);
+  }
+  if ('floatEnabled' in src) out.floatEnabled = !!src.floatEnabled;
+  if ('autoLaunch' in src) out.autoLaunch = !!src.autoLaunch;
+  if ('autoCleanDays' in src) {
+    const days = Number(src.autoCleanDays);
+    out.autoCleanDays = AUTO_CLEAN_DAYS.has(days) ? days : current.autoCleanDays;
+  }
+
+  return out;
+}
+
 function setSetting(patch) {
-  data.settings = { ...data.settings, ...patch };
-  if ('autoLaunch' in patch) {
-    app.setLoginItemSettings({ openAtLogin: !!patch.autoLaunch });
+  const normalizedPatch = normalizeSettingsPatch(patch);
+  data.settings = { ...data.settings, ...normalizedPatch };
+  if ('autoLaunch' in normalizedPatch) {
+    app.setLoginItemSettings({ openAtLogin: !!normalizedPatch.autoLaunch });
   }
   scheduleSave();
-  if ('floatEnabled' in patch) applyFloat();
+  if ('floatEnabled' in normalizedPatch) applyFloat();
   broadcast();
 }
 
@@ -337,21 +443,15 @@ function registerIpc() {
   ipcMain.handle('data:get', () => payload());
 
   ipcMain.handle('task:add', (e, task) => {
-    const t = {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      title: String(task.title || '').trim().slice(0, 100),
-      note: String(task.note || '').slice(0, 500),
-      date: task.date || ymd(new Date()),
-      time: task.time || null,
-      remindLead: task.remindLead == null || task.remindLead === '' ? null : Number(task.remindLead),
-      priority: ['high', 'medium', 'low'].includes(task.priority) ? task.priority : 'medium',
-      category: String(task.category || '').slice(0, 20),
-      repeat: ['daily', 'weekly'].includes(task.repeat) ? task.repeat : null,
+    const input = task && typeof task === 'object' ? task : {};
+    const t = normalizeTask({
+      ...input,
+      id: null,
       done: false,
       doneAt: null,
       reminded: false,
       createdAt: Date.now(),
-    };
+    });
     if (!t.title) return { ok: false, error: '标题不能为空' };
     data.tasks.push(t);
     scheduleSave();
@@ -359,17 +459,39 @@ function registerIpc() {
     return { ok: true, task: t };
   });
 
-  ipcMain.handle('task:update', (e, { id, patch }) => {
+  ipcMain.handle('task:update', (e, request) => {
+    const { id, patch } = request && typeof request === 'object' ? request : {};
     const t = data.tasks.find((x) => x.id === id);
     if (!t) return { ok: false, error: '任务不存在' };
+
+    const source = patch && typeof patch === 'object' ? patch : {};
+    const allowedFields = ['title', 'note', 'date', 'time', 'remindLead', 'priority', 'category', 'repeat'];
+    const p = {};
+    for (const key of allowedFields) {
+      if (key in source) p[key] = source[key];
+    }
+    if ('title' in p && !String(p.title || '').trim()) {
+      return { ok: false, error: '标题不能为空' };
+    }
+
+    if ('date' in p && !isValidDate(p.date)) delete p.date;
+    if ('time' in p) {
+      p.time = isValidTime(p.time) ? p.time : null;
+      if ('remindLead' in p) p.remindLead = normalizeRemindLead(p.remindLead);
+      if (p.time === null) p.remindLead = null;
+    }
+    if ('remindLead' in p) {
+      p.remindLead = normalizeRemindLead(p.remindLead);
+      if (!('time' in p) && !t.time) p.remindLead = null;
+    }
+
     const scheduleFields = ['date', 'time', 'remindLead'];
     let scheduleChanged = false;
     for (const key of ['title', 'note', 'date', 'time', 'remindLead', 'priority', 'category', 'repeat']) {
-      if (key in patch) {
-        let v = patch[key];
+      if (key in p) {
+        let v = p[key];
         if (key === 'title') v = String(v || '').trim().slice(0, 100);
         else if (key === 'note') v = String(v || '').slice(0, 500);
-        else if (key === 'remindLead') v = v == null || v === '' ? null : Number(v);
         else if (key === 'priority') v = ['high', 'medium', 'low'].includes(v) ? v : t.priority;
         else if (key === 'category') v = String(v || '').slice(0, 20);
         else if (key === 'repeat') v = ['daily', 'weekly'].includes(v) ? v : null;
@@ -388,16 +510,22 @@ function registerIpc() {
     if (!t) return { ok: false, error: '任务不存在' };
     t.done = !t.done;
     t.doneAt = t.done ? Date.now() : null;
-    // 完成重复任务时生成下一次实例（按标题+日期去重，防止反复勾选产生重复）
+      // 完成重复任务时生成下一次实例（同名但时间/分类不同的任务不合并）
     if (t.done && t.repeat) {
       const nextDate = nextRepeatDate(t.date, t.repeat);
       const exists = data.tasks.some(
-        (x) => x.repeat === t.repeat && x.title === t.title && x.date === nextDate && !x.done
+          (x) =>
+            x.repeat === t.repeat &&
+            x.title === t.title &&
+            x.date === nextDate &&
+            x.time === t.time &&
+            x.category === t.category &&
+            !x.done
       );
       if (!exists) {
         data.tasks.push({
           ...t,
-          id: `${Date.now()}-r${Math.random().toString(36).slice(2, 6)}`,
+            id: generateTaskId('r'),
           date: nextDate,
           done: false,
           doneAt: null,
@@ -411,15 +539,15 @@ function registerIpc() {
     return { ok: true, task: t };
   });
 
-  // 撤销删除：按原样恢复任务对象
+  // 撤销删除：恢复前统一规范化，避免非法或重复 ID 数据重新入库
   ipcMain.handle('task:restore', (e, raw) => {
-    if (!raw || typeof raw !== 'object' || !raw.id || !String(raw.title || '').trim()) {
+    const restored = normalizeTask(raw);
+    if (!restored.title) {
       return { ok: false, error: '无效的任务数据' };
     }
-    if (data.tasks.some((x) => x.id === raw.id)) {
-      return { ok: false, error: '任务已存在' };
-    }
-    data.tasks.push(raw);
+    const existingIds = new Set(data.tasks.map((task) => task.id));
+    assignUniqueId(restored, existingIds, 'u');
+    data.tasks.push(restored);
     scheduleSave();
     broadcast();
     return { ok: true };
@@ -436,7 +564,7 @@ function registerIpc() {
   });
 
   ipcMain.handle('settings:set', (e, patch) => {
-    setSetting(patch || {});
+    setSetting(patch);
     return { ok: true, settings: data.settings };
   });
 
@@ -473,16 +601,11 @@ function registerIpc() {
     if (canceled || filePaths.length === 0) return { ok: false, canceled: true };
     try {
       const parsed = JSON.parse(fs.readFileSync(filePaths[0], 'utf-8'));
-      const tasks = Array.isArray(parsed.tasks)
-        ? parsed.tasks.filter((t) => t && typeof t === 'object' && String(t.title || '').trim())
-        : null;
-      if (!tasks) return { ok: false, error: '文件格式不正确：缺少有效的 tasks 数组' };
-      const settings = {
-        ...DEFAULT_DATA.settings,
-        ...(parsed.settings && typeof parsed.settings === 'object' ? parsed.settings : {}),
-      };
-      data = { tasks, settings };
-      if ('autoLaunch' in settings) app.setLoginItemSettings({ openAtLogin: !!settings.autoLaunch });
+      if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.tasks)) {
+        return { ok: false, error: '文件格式不正确：缺少有效的 tasks 数组' };
+      }
+      data = normalizeData(parsed);
+      app.setLoginItemSettings({ openAtLogin: !!data.settings.autoLaunch });
       lastDay = ymd(new Date());
       rolloverRepeatingTasks();
       cleanOldDone();
@@ -536,6 +659,8 @@ if (!gotLock) {
     registerIpc();
 
     tray = new Tray(TRAY_PATH);
+    // Windows 下托盘左键点击直接打开主窗口（右键菜单不受影响）
+    if (process.platform === 'win32') tray.on('click', () => showMain());
     updateTray();
 
     createMainWindow();
