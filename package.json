@@ -9,8 +9,8 @@
     "start": "electron .",
     "test": "node --test tests/main-process.test.js",
     "test:gui": "node tests/gui-smoke.js",
-    "dist": "electron-builder --win",
-    "dist:mac": "electron-builder --mac",
+    "dist": "electron-builder --win --publish never",
+    "dist:mac": "electron-builder --mac --publish never",
     "icon": "node scripts/gen-icon.js"
   },
   "devDependencies": {
