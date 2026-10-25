@@ -24,12 +24,12 @@ function weekStart() {
   return dt;
 }
 
-const CHECK_SVG = '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg>';
-const EDIT_SVG = '<svg viewBox="0 0 24 24" width="15" height="15"><path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 0 0 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>';
-const DEL_SVG = '<svg viewBox="0 0 24 24" width="15" height="15"><path fill="currentColor" d="M6 19a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>';
-const BELL_SVG = '<svg viewBox="0 0 24 24" width="11" height="11"><path fill="currentColor" d="M12 22a2 2 0 0 0 2-2h-4a2 2 0 0 0 2 2zm6-6v-5a6 6 0 0 0-5-5.91V4a1 1 0 1 0-2 0v1.09A6 6 0 0 0 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>';
-const CLOCK_SVG = '<svg viewBox="0 0 24 24" width="11" height="11"><path fill="currentColor" d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm4.2 14.2L11 13V7h1.5v5.2l4.5 2.7-.8 1.3z"/></svg>';
-const REPEAT_SVG = '<svg viewBox="0 0 24 24" width="11" height="11"><path fill="currentColor" d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-8 8s3.57 8 8 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>';
+const CHECK_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg>';
+const EDIT_SVG = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 0 0 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>';
+const DEL_SVG = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M6 19a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>';
+const BELL_SVG = '<svg viewBox="0 0 24 24" width="11" height="11" aria-hidden="true"><path fill="currentColor" d="M12 22a2 2 0 0 0 2-2h-4a2 2 0 0 0 2 2zm6-6v-5a6 6 0 0 0-5-5.91V4a1 1 0 1 0-2 0v1.09A6 6 0 0 0 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>';
+const CLOCK_SVG = '<svg viewBox="0 0 24 24" width="11" height="11" aria-hidden="true"><path fill="currentColor" d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm4.2 14.2L11 13V7h1.5v5.2l4.5 2.7-.8 1.3z"/></svg>';
+const REPEAT_SVG = '<svg viewBox="0 0 24 24" width="11" height="11" aria-hidden="true"><path fill="currentColor" d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-8 8s3.57 8 8 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>';
 const PRI_LABEL = { high: '高', medium: '中', low: '低' };
 
 // ---------- 渲染 ----------
@@ -92,21 +92,22 @@ function taskItemHTML(t, opts = {}) {
     ? `<div class="task-note">${escapeHTML(t.note)}</div>`
     : '';
   return `
-    <button class="check" data-act="toggle" title="完成/取消完成">${CHECK_SVG}</button>
+    <button class="check" data-act="toggle" title="完成/取消完成" aria-label="完成或取消完成任务">${CHECK_SVG}</button>
     <div class="task-body">
       <div class="task-title">${escapeHTML(t.title)}</div>
       ${noteHTML}
       <div class="task-meta">${chips.join('')}</div>
     </div>
     <div class="task-actions">
-      <button class="icon-btn edit" data-act="edit" title="编辑">${EDIT_SVG}</button>
-      <button class="icon-btn del" data-act="delete" title="删除">${DEL_SVG}</button>
+      <button class="icon-btn edit" data-act="edit" title="编辑" aria-label="编辑任务">${EDIT_SVG}</button>
+      <button class="icon-btn del" data-act="delete" title="删除" aria-label="删除任务">${DEL_SVG}</button>
     </div>`;
 }
 
 function renderList() {
   const ul = $('taskList');
   ul.innerHTML = '';
+  const searchStatus = $('searchStatus');
 
   // 搜索模式：跨日期匹配标题/备注/分类，未完成与已完成混排并显示日期
   if (searchQuery) {
@@ -125,8 +126,13 @@ function renderList() {
     $('emptyState').classList.toggle('hidden', matches.length > 0);
     $('emptyText').textContent = '没有找到匹配的任务';
     $('doneSection').classList.add('hidden');
+    searchStatus.textContent = `找到 ${matches.length} 项`;
+    searchStatus.classList.remove('hidden');
     return;
   }
+
+  searchStatus.textContent = '';
+  searchStatus.classList.add('hidden');
 
   const dayTasks = tasks.filter((t) => t.date === viewDate);
   const unfinished = sortTasks(dayTasks.filter((t) => !t.done));
@@ -397,7 +403,7 @@ function renderSettings() {
   for (const c of settings.categories || []) {
     const item = document.createElement('span');
     item.className = 'cat-item';
-    item.innerHTML = `${escapeHTML(c)}<button title="删除分类">&times;</button>`;
+    item.innerHTML = `${escapeHTML(c)}<button title="删除分类" aria-label="删除分类 ${escapeHTML(c)}">&times;</button>`;
     item.querySelector('button').addEventListener('click', async () => {
       const cats = settings.categories.filter((x) => x !== c);
       const res = await window.api.setSettings({ categories: cats });

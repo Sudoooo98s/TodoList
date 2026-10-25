@@ -19,7 +19,7 @@
 }
 
 body {
-  font-family: "Microsoft YaHei UI", "Segoe UI", sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei UI", "Segoe UI", sans-serif;
   background: var(--bg);
   color: var(--text);
   font-size: 14px;
@@ -63,18 +63,39 @@ body {
 }
 
 /* ---------- 搜索框 ---------- */
-.search-input {
+.search-group {
+  position: relative;
   flex: 1;
-  max-width: 280px;
-  margin: 0 18px;
+  max-width: 340px;
+}
+
+.search-input {
+  width: 100%;
+  max-width: none;
+  margin: 0;
   border: 1px solid var(--border);
   background: var(--card);
   border-radius: 8px;
-  padding: 6px 12px;
+  padding: 6px 72px 6px 12px;
   font-size: 13px;
   color: var(--text);
   outline: none;
   transition: border 0.15s;
+}
+
+.search-status {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-sub);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 7px;
+  pointer-events: none;
 }
 
 .search-input:focus {
@@ -932,4 +953,12 @@ body {
   .wc-bar {
     background: rgba(129, 140, 248, 0.22);
   }
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 }

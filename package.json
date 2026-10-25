@@ -1,7 +1,7 @@
 {
   "name": "dailylist",
-  "version": "1.1.0",
-  "description": "每日清单 - Windows 桌面待办小工具",
+  "version": "1.2.0",
+  "description": "每日清单 - Windows / macOS 桌面待办小工具",
   "main": "main.js",
   "author": "user",
   "license": "MIT",
@@ -10,6 +10,7 @@
     "test": "node --test tests/main-process.test.js",
     "test:gui": "node tests/gui-smoke.js",
     "dist": "electron-builder --win",
+    "dist:mac": "electron-builder --mac",
     "icon": "node scripts/gen-icon.js"
   },
   "devDependencies": {
@@ -50,6 +51,25 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "shortcutName": "每日清单"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ],
+      "category": "public.app-category.productivity",
+      "icon": "assets/icon.png",
+      "identity": null
     }
   }
 }

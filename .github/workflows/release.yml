@@ -1,0 +1,82 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.os-name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os-name: Windows
+            os: windows-latest
+            build-command: npm run dist
+            artifact-path: release/*.exe
+          - os-name: macOS
+            os: macos-14
+            build-command: npm run dist:mac
+            artifact-path: |
+              release/*.dmg
+              release/*-mac.zip
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check syntax and run tests
+        run: |
+          node --check main.js
+          node --check preload.js
+          node --check src/js/app.js
+          node --check src/js/float.js
+          node --check src/js/common.js
+          npm test
+
+      - name: Build packages
+        env:
+          ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
+        run: ${{ matrix.build-command }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dailylist-${{ matrix.os-name }}
+          path: ${{ matrix.artifact-path }}
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY"; then
+            gh release upload "$TAG" release-assets/* --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$TAG" release-assets/* \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "DailyList $TAG" \
+              --notes "DailyList $TAG 桌面客户端。包含 Windows 安装版/便携版与 macOS Apple Silicon DMG/ZIP。"
+          fi

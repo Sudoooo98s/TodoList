@@ -14,14 +14,17 @@
         <svg class="brand-icon" viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg>
         <span>每日清单</span>
       </div>
-      <input id="searchInput" class="search-input" type="text" placeholder="搜索任务（Ctrl+F）" autocomplete="off" />
+      <div class="search-group">
+        <input id="searchInput" class="search-input" type="text" placeholder="搜索任务（Ctrl+F）" autocomplete="off" aria-describedby="searchStatus" />
+        <span id="searchStatus" class="search-status hidden" role="status" aria-live="polite"></span>
+      </div>
       <div class="top-actions">
-        <button id="btnFloat" class="ghost-btn" title="显示/隐藏置顶悬浮窗">
-          <svg viewBox="0 0 24 24" width="15" height="15"><path fill="currentColor" d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zm0 16H5V5h14v14z"/></svg>
+        <button id="btnFloat" class="ghost-btn" title="显示/隐藏置顶悬浮窗" aria-label="显示或隐藏置顶悬浮窗">
+          <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zm0 16H5V5h14v14z"/></svg>
           悬浮窗
         </button>
-        <button id="btnSettings" class="ghost-btn" title="设置">
-          <svg viewBox="0 0 24 24" width="15" height="15"><path fill="currentColor" d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.61 3.61 0 0 1 8.4 12c0-1.98 1.62-3.6 3.6-3.6s3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+        <button id="btnSettings" class="ghost-btn" title="设置" aria-label="打开设置">
+          <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.61 3.61 0 0 1 8.4 12c0-1.98 1.62-3.6 3.6-3.6s3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
           设置
         </button>
       </div>
@@ -33,12 +36,12 @@
         <div class="hero-sub" id="heroSub">还剩 0 件 · 本周已完成 0 件</div>
       </div>
       <div class="date-nav">
-        <button id="prevDay" class="nav-btn" title="前一天">
-          <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M15.4 7.4 14 6l-6 6 6 6 1.4-1.4-4.6-4.6 4.6-4.6z"/></svg>
+        <button id="prevDay" class="nav-btn" title="前一天" aria-label="查看前一天">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M15.4 7.4 14 6l-6 6 6 6 1.4-1.4-4.6-4.6 4.6-4.6z"/></svg>
         </button>
         <button id="todayBtn" class="nav-btn nav-today">今天</button>
-        <button id="nextDay" class="nav-btn" title="后一天">
-          <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M8.6 16.6 10 18l6-6-6-6-1.4 1.4 4.6 4.6-4.6 4.6z"/></svg>
+        <button id="nextDay" class="nav-btn" title="后一天" aria-label="查看后一天">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M8.6 16.6 10 18l6-6-6-6-1.4 1.4 4.6 4.6-4.6 4.6z"/></svg>
         </button>
       </div>
     </section>
@@ -49,7 +52,7 @@
     <section class="add-card">
       <div class="add-row">
         <input id="quickInput" type="text" placeholder="添加一件事，回车保存…" maxlength="100" autocomplete="off" />
-        <button id="toggleDetail" class="icon-btn" title="展开详细设置">
+        <button id="toggleDetail" class="icon-btn" title="展开详细设置" aria-label="展开或收起详细设置">
           <span>详细</span>
           <svg id="chevron" viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M7.4 8.6 12 13.2l4.6-4.6L18 10l-6 6-6-6 1.4-1.4z"/></svg>
         </button>
@@ -130,8 +133,8 @@
     <div class="modal">
       <div class="modal-head">
         <h2>设置</h2>
-        <button id="closeSettings" class="icon-btn" title="关闭">
-          <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>
+        <button id="closeSettings" class="icon-btn" title="关闭" aria-label="关闭设置">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>
         </button>
       </div>
       <div class="modal-body">
@@ -170,7 +173,7 @@
         </div>
         <div class="setting-group">
           <h3>提醒</h3>
-          <p class="hint">提醒在设定时间前弹出 Windows 系统通知，需要应用保持运行（最小化到托盘即可）。</p>
+          <p class="hint">提醒在设定时间前弹出系统通知，需要应用保持运行（最小化到托盘即可）。</p>
           <button id="testNotify" class="ghost-btn">发送测试通知</button>
         </div>
         <div class="setting-group">

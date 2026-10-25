@@ -2,7 +2,7 @@
 let tasks = [];
 
 const $ = (id) => document.getElementById(id);
-const CHECK_SVG = '<svg viewBox="0 0 24 24" width="10" height="10"><path fill="currentColor" d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg>';
+const CHECK_SVG = '<svg viewBox="0 0 24 24" width="10" height="10" aria-hidden="true"><path fill="currentColor" d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg>';
 
 function render() {
   const today = ymd(new Date());

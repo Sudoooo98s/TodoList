@@ -1,5 +1,5 @@
 // 生成应用图标与托盘图标（纯 Node 实现，无需额外依赖）
-// 输出: assets/icon.png (256x256), assets/tray.png (32x32)
+// 输出: assets/icon.png (1024x1024), assets/tray.png (32x32)
 const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
@@ -47,15 +47,16 @@ function png(width, height, pixels) {
 const clamp = (v, a, b) => Math.min(Math.max(v, a), b);
 const lerp = (a, b, t) => a + (b - a) * t;
 
-// 画 256x256：圆角矩形渐变底 + 白色对勾
-function drawIcon256() {
-  const S = 256;
+// 画 1024x1024：圆角矩形渐变底 + 白色对勾
+function drawIcon(size) {
+  const S = size;
   const px = Buffer.alloc(S * S * 4);
   const half = S / 2;
-  const radius = 56;
-  // 对勾折线两端点（256 坐标系）
-  const pts = [[62, 133], [109, 180], [197, 92]];
-  const halfW = 9.5;
+  const scale = S / 256;
+  const radius = 56 * scale;
+  // 对勾折线两端点（256 坐标系，按尺寸等比缩放）
+  const pts = [[62, 133], [109, 180], [197, 92]].map(([x, y]) => [x * scale, y * scale]);
+  const halfW = 9.5 * scale;
 
   function sdRoundRect(x, y) {
     const qx = Math.abs(x - half) - (half - radius);
@@ -120,7 +121,7 @@ function downsample(src, srcSize, dstSize) {
 
 const outDir = path.join(__dirname, '..', 'assets');
 fs.mkdirSync(outDir, { recursive: true });
-const icon256 = drawIcon256();
-fs.writeFileSync(path.join(outDir, 'icon.png'), png(256, 256, icon256));
-fs.writeFileSync(path.join(outDir, 'tray.png'), png(32, 32, downsample(icon256, 256, 32)));
+const icon = drawIcon(1024);
+fs.writeFileSync(path.join(outDir, 'icon.png'), png(1024, 1024, icon));
+fs.writeFileSync(path.join(outDir, 'tray.png'), png(32, 32, downsample(icon, 1024, 32)));
 console.log('icons generated:', outDir);

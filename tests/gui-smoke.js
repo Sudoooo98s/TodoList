@@ -180,6 +180,13 @@ async function run() {
       '[...document.querySelectorAll("#taskList .task-title")].map((el) => el.textContent.trim())'
     );
     assert.equal(searchResults.includes('GUI 自验证任务'), true);
+    assert.equal(await evaluate(connection, 'document.getElementById("searchStatus").textContent'), '找到 1 项');
+
+    await evaluate(connection, 'document.getElementById("searchInput").focus()');
+    assert.equal(
+      await evaluate(connection, 'getComputedStyle(document.getElementById("searchInput")).outlineStyle'),
+      'solid'
+    );
 
     await evaluate(connection, 'document.getElementById("prevDay").click()');
     assert.equal(await evaluate(connection, 'document.getElementById("searchInput").value'), '');

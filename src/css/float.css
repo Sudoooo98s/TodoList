@@ -13,7 +13,7 @@ body {
 }
 
 body {
-  font-family: "Microsoft YaHei UI", "Segoe UI", sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei UI", "Segoe UI", sans-serif;
   font-size: 13px;
 }
 
@@ -74,6 +74,11 @@ body {
 .float-close:hover {
   background: rgba(255, 255, 255, 0.12);
   color: #fff;
+}
+
+.float-close:focus-visible {
+  outline: 2px solid #a5b4fc;
+  outline-offset: 2px;
 }
 
 .float-list {
