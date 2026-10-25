@@ -61,6 +61,7 @@ jobs:
             xvfb \
             libasound2t64 \
             libatspi2.0-0t64 \
+            libayatana-appindicator3-1 \
             libgbm1 \
             libgtk-3-0t64 \
             libnss3 \
@@ -70,4 +71,18 @@ jobs:
             libxtst6
 
       - name: Run GUI smoke test
-        run: xvfb-run -a --server-args="-screen 0 1280x1024x24" npm run test:gui
+        env:
+          ELECTRON_ENABLE_LOGGING: "1"
+        run: |
+          set -o pipefail
+          xvfb-run -a --server-args="-screen 0 1280x1024x24" npm run test:gui 2>&1 | tee gui.log
+
+      - name: Publish GUI diagnostics
+        if: failure()
+        run: |
+          {
+            echo "### GUI smoke diagnostics"
+            echo '```text'
+            tail -n 120 gui.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
