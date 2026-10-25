@@ -87,5 +87,6 @@ npm run test:gui
 
 - 涉及 UI 的改动需运行 `npm run test:gui` 做自动化冒烟测试；涉及视觉样式或布局时，还需运行 `npm start` 做人工确认。
 - 涉及数据结构、导入导出、重复任务或提醒的改动，必须补充或运行对应测试；没有测试时至少用临时数据文件验证损坏 JSON、备份回退和导入结果。
+- 修改 CI、GUI 冒烟测试、打包或发布流程前，必须先阅读 `docs/development.md`；GUI CI 固定 `ubuntu-24.04`，Xvfb 环境需设置 `ELECTRON_DISABLE_SANDBOX=1`，macOS 仅构建 `arm64`。
 - 发布相关改动需运行 `npm run dist:mac` 并确认 macOS Apple Silicon 产物生成；如需同时发布 Windows，再运行 `npm run dist` 并确认安装版与便携版产物生成。
 - 不提交 `release/`、`node_modules/`、`.DS_Store` 或用户本地数据文件。

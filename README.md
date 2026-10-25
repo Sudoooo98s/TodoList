@@ -60,6 +60,8 @@ npm test
 npm run test:gui
 ```
 
+更多开发、CI 排障与发布约定见 [docs/development.md](docs/development.md)。
+
 ## 打包发布
 
 ```bash
