@@ -10,7 +10,7 @@ app.setPath('userData', DATA_DIR);
 const DATA_FILE = path.join(DATA_DIR, 'todo-data.json');
 const BACKUP_FILE = path.join(DATA_DIR, 'todo-data.backup.json');
 const ICON_PATH = path.join(__dirname, 'assets', 'icon.png');
-const TRAY_PATH = path.join(__dirname, 'assets', 'tray.png');
+const TRAY_PATH = path.join(__dirname, 'assets', process.platform === 'darwin' ? 'trayTemplate.png' : 'tray.png');
 
 const DEFAULT_DATA = {
   tasks: [],
@@ -139,6 +139,7 @@ function normalizeTask(raw, idx = 0) {
     doneAt: done && Number.isFinite(Number(r.doneAt)) ? Number(r.doneAt) : null,
     reminded: !!r.reminded,
     createdAt: Number.isFinite(Number(r.createdAt)) ? Number(r.createdAt) : Date.now(),
+    repeatSourceId: typeof r.repeatSourceId === 'string' && r.repeatSourceId ? r.repeatSourceId : null,
   };
 }
 
@@ -262,6 +263,46 @@ function updateTray() {
     },
   ]);
   tray.setContextMenu(menu);
+}
+
+function createApplicationMenu() {
+  if (process.platform !== 'darwin') {
+    Menu.setApplicationMenu(null);
+    return;
+  }
+
+  Menu.setApplicationMenu(Menu.buildFromTemplate([
+    {
+      label: APP_NAME,
+      submenu: [
+        { role: 'about' },
+        { type: 'separator' },
+        { role: 'services' },
+        { type: 'separator' },
+        { role: 'hide' },
+        { role: 'hideOthers' },
+        { role: 'unhide' },
+        { type: 'separator' },
+        { role: 'quit' },
+      ],
+    },
+    {
+      label: '编辑',
+      submenu: [
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { role: 'selectAll' },
+      ],
+    },
+    {
+      label: '窗口',
+      submenu: [
+        { role: 'minimize' },
+        { role: 'close' },
+      ],
+    },
+  ]));
 }
 
 // ---------- 主窗口 ----------
@@ -531,8 +572,20 @@ function registerIpc() {
           doneAt: null,
           reminded: false,
           createdAt: Date.now(),
+          repeatSourceId: t.id,
         });
       }
+    }
+    if (!t.done && t.repeat) {
+      data.tasks = data.tasks.filter((task) => !(
+        task.repeatSourceId === t.id &&
+        !task.done &&
+        task.repeat === t.repeat &&
+        task.title === t.title &&
+        task.date === nextRepeatDate(t.date, t.repeat) &&
+        task.time === t.time &&
+        task.category === t.category
+      ));
     }
     scheduleSave();
     broadcast();
@@ -647,6 +700,7 @@ if (!gotLock) {
   app.quit();
 } else {
   app.on('second-instance', () => showMain());
+  app.on('activate', () => showMain());
 
   app.whenReady().then(() => {
     app.setAppUserModelId('com.dailylist.app');
@@ -655,7 +709,7 @@ if (!gotLock) {
     lastDay = ymd(new Date());
     rolloverRepeatingTasks();
     cleanOldDone();
-    Menu.setApplicationMenu(null);
+    createApplicationMenu();
     registerIpc();
 
     tray = new Tray(TRAY_PATH);

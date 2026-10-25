@@ -2,7 +2,7 @@
 
 ## 项目定位
 
-DailyList 是一个面向 Windows 的 Electron 桌面待办应用。核心原则是本地优先、轻量、无登录、无联网同步、无遥测。当前技术栈为 Electron + 原生 HTML/CSS/JavaScript，不引入前端框架、状态管理库或后端服务，除非用户明确要求。
+DailyList 是一个面向 Windows 与 macOS 的 Electron 桌面待办应用；macOS 仅支持 Apple Silicon。核心原则是本地优先、轻量、无登录、无联网同步、无遥测。当前技术栈为 Electron + 原生 HTML/CSS/JavaScript，不引入前端框架、状态管理库或后端服务，除非用户明确要求。
 
 ## 架构约束
 
@@ -31,11 +31,12 @@ DailyList 是一个面向 Windows 的 Electron 桌面待办应用。核心原则
 - 日期导航支持前一天、后一天、回到今天；搜索激活时不能让用户误以为仍在查看单日列表，需明确显示搜索状态或退出搜索。
 - 搜索范围包含标题、备注、分类，大小写不敏感，输入即时过滤。
 - 搜索结果跨日期展示，按日期从早到晚排序，每条结果显示归属日期标签；`Esc` 清空并退出搜索。
-- `Ctrl+F` 聚焦搜索框，`Ctrl+N` 聚焦快速添加输入框。
+- Windows 使用 `Ctrl+F` 聚焦搜索框、`Ctrl+N` 聚焦快速添加输入框；macOS 使用对应 `Cmd` 快捷键。
 
 ### 重复任务与提醒
 
 - 完成每日/每周重复任务后，自动生成下一次未完成实例；去重规则必须包含重复规则、标题、日期、时间和分类，避免不同配置的同名任务被误合并。
+- 取消完成重复任务时，仅删除由该任务自动生成且仍未完成的下一次实例；用户手工创建或已完成的实例不得被误删。
 - 未完成的重复任务跨天后滚动到今天，并重置提醒状态。
 - 提醒调度每 20 秒检查一次；计划字段变更后必须重置 `reminded`。
 - 睡眠唤醒后允许 15 分钟补发窗口；正常运行时允许到点后 1 分钟内的提醒，避免调度间隙漏发。
@@ -43,7 +44,7 @@ DailyList 是一个面向 Windows 的 Electron 桌面待办应用。核心原则
 
 ### 数据与设置
 
-- 数据文件位于 `%APPDATA%\每日清单\todo-data.json`，备份为 `todo-data.backup.json`。
+- Windows 数据文件位于 `%APPDATA%\每日清单\todo-data.json`；macOS 数据文件位于 `~/Library/Application Support/每日清单/todo-data.json`；备份均为 `todo-data.backup.json`。
 - 主数据损坏时回退备份；两者都不可用才使用默认数据。
 - 写入必须先写临时文件，成功后再原子替换主文件；备份必须始终保存最近一次成功写入的数据，不能用损坏内容覆盖可用备份。
 - 分类列表必须去重、去除空值、每项最长 20 字符、最多 50 个。
@@ -54,6 +55,7 @@ DailyList 是一个面向 Windows 的 Electron 桌面待办应用。核心原则
 ### 桌面集成
 
 - 关闭主窗口时应用常驻托盘；托盘悬停显示今日剩余未完成数量；Windows 左键点击托盘打开主窗口，右键菜单提供悬浮窗开关与退出。
+- macOS 使用 `assets/trayTemplate.png` 作为菜单栏模板图标，保留标准应用菜单；点击 Dock 图标必须重新显示主窗口。
 - 悬浮窗置顶显示今日未完成任务，可拖动，位置持久化，且不能移出屏幕工作区。
 - 支持系统深浅色模式自动切换。
 
@@ -61,10 +63,9 @@ DailyList 是一个面向 Windows 的 Electron 桌面待办应用。核心原则
 
 以下事项按优先级排列，后续修改应优先处理高优先级问题，不要引入无关重构。
 
-1. **推送当前提交（高）**：本地 `main` 已创建提交 `6605d48`，领先 `origin/main` 1 个提交。远端已切换为 `git@github.com:Sudoooo98s/TodoList.git`，SSH 密钥位于 `~/.ssh/id_ed25519`（指纹 `SHA256:g7ToJJ4uJiDvlJ9v3Y+0E6pZ+vO5mku/S7vFk5NzXs4`）。需先将 `~/.ssh/id_ed25519.pub` 添加到 GitHub，然后运行 `ssh -T git@github.com` 验证，最后执行 `git push origin main`。
-2. **自动化验证覆盖（中）**：现有测试覆盖日期/时间校验、任务与设置规范化、重复 ID 处理、重复日期计算、备份写入顺序和核心 GUI 冒烟流程；仍需补充提醒调度、导入导出 IPC 和损坏数据回退的集成级测试。
-3. **可访问性（低）**：图标按钮缺少完整可访问名称与键盘焦点样式，搜索输入缺少清晰的结果数量反馈。
-4. **打包验证（低）**：发布前需在 Windows 上执行安装版与便携版的手工冒烟测试，覆盖托盘、悬浮窗、通知、导入导出和重启数据持久化。
+1. **发布信任（高）**：Windows 安装包与 macOS DMG 尚未代码签名；macOS 也未公证。需要开发者证书、Apple 公证凭据和安全的 CI Secret 后再实施。
+2. **Windows 手工冒烟（中）**：发布前需在 Windows 上执行安装版与便携版手工验证，覆盖托盘、悬浮窗、通知、导入导出和重启数据持久化。
+3. **可访问性精修（低）**：设置弹窗仍可补充焦点圈定、`aria-modal` 与关闭后焦点返回；macOS 文案可动态显示 `Cmd` 快捷键。
 
 ## 验证要求
 
@@ -77,11 +78,14 @@ node --check preload.js
 node --check src/js/app.js
 node --check src/js/float.js
 node --check src/js/common.js
+node --check scripts/gen-icon.js
+node --check tests/main-process.test.js
+node --check tests/gui-smoke.js
 npm test
 npm run test:gui
 ```
 
 - 涉及 UI 的改动需运行 `npm run test:gui` 做自动化冒烟测试；涉及视觉样式或布局时，还需运行 `npm start` 做人工确认。
 - 涉及数据结构、导入导出、重复任务或提醒的改动，必须补充或运行对应测试；没有测试时至少用临时数据文件验证损坏 JSON、备份回退和导入结果。
-- 发布相关改动需运行 `npm run dist`，并确认 `release/` 产物生成。
+- 发布相关改动需运行 `npm run dist:mac` 并确认 macOS Apple Silicon 产物生成；如需同时发布 Windows，再运行 `npm run dist` 并确认安装版与便携版产物生成。
 - 不提交 `release/`、`node_modules/`、`.DS_Store` 或用户本地数据文件。

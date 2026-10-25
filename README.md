@@ -28,18 +28,18 @@
 
 ### 方式一：直接下载使用
 
-在 [Releases](../../releases) 页面下载最新版本，二选一：
+在 [Releases](../../releases) 页面根据系统选择下载：
 
 | 文件 | 说明 |
 | --- | --- |
-| `DailyList Setup x.x.x.exe` | 安装版，自动创建桌面快捷方式（推荐日常使用） |
-| `DailyList x.x.x.exe` | 便携版，单文件免安装，双击即用，适合放 U 盘 |
+| `DailyList.Setup.x.x.x.exe` | Windows 安装版，自动创建桌面快捷方式（推荐日常使用） |
+| `DailyList.x.x.x.exe` | Windows 便携版，单文件免安装，双击即用，适合放 U 盘 |
 | `DailyList-1.2.0-arm64.dmg` | macOS Apple Silicon 安装包 |
 | `DailyList-1.2.0-arm64-mac.zip` | macOS Apple Silicon 免安装压缩包 |
 
 ### 方式二：从源码运行
 
-环境要求：Node.js 18+
+环境要求：Node.js 22+
 
 ```bash
 # 克隆仓库
@@ -72,8 +72,8 @@ npm run dist:mac
 
 产物输出到 `release/` 目录：
 
-- `DailyList Setup x.x.x.exe` —— NSIS 安装包
-- `DailyList x.x.x.exe` —— 便携单文件版
+- `DailyList.Setup.x.x.x.exe` —— Windows NSIS 安装包
+- `DailyList.x.x.x.exe` —— Windows 便携单文件版
 - `DailyList-x.x.x-arm64.dmg` —— macOS 安装包
 - `DailyList-x.x.x-arm64-mac.zip` —— macOS 免安装压缩包
 
@@ -94,6 +94,7 @@ npm run dist:mac
 
 - 详细设置中可将任务设为“每天”或“每周”重复
 - 完成后会自动生成下一次实例（按重复规则、标题、日期、时间和分类去重）
+- 取消完成时会删除该任务自动生成且尚未完成的下一次实例，不会影响手工创建或已完成的实例
 - 当天没做完的重复任务，跨天后自动滚动到今天
 
 ### 数据导入 / 导出
@@ -122,6 +123,13 @@ npm run dist:mac
 - 悬浮窗置顶显示今日未完成任务，可拖动到屏幕任意位置，位置会自动记住
 - 点悬浮窗右上角 × 关闭（等同关闭开关，不会退出程序）
 
+### macOS 集成
+
+- 仅提供 Apple Silicon 安装包
+- 点击 Dock 图标会重新显示主窗口
+- 菜单栏保留标准应用菜单，支持复制、粘贴、全选、隐藏与退出
+- 菜单栏图标使用 16x16 Template 图标，自动适配浅色/深色菜单栏
+
 ### 数据存储
 
 - Windows 数据文件：`%APPDATA%\每日清单\todo-data.json`
@@ -138,7 +146,8 @@ TodoList/
 ├── package.json
 ├── assets/
 │   ├── icon.png         # 应用图标（1024x1024）
-│   └── tray.png         # 托盘图标（32x32）
+│   ├── tray.png         # Windows 托盘图标（32x32）
+│   └── trayTemplate.png # macOS 菜单栏模板图标（16x16）
 ├── scripts/
 │   └── gen-icon.js      # 纯 Node 实现的图标生成脚本（npm run icon）
 └── src/

@@ -1,5 +1,5 @@
 // 生成应用图标与托盘图标（纯 Node 实现，无需额外依赖）
-// 输出: assets/icon.png (1024x1024), assets/tray.png (32x32)
+// 输出: assets/icon.png (1024x1024), assets/tray.png (32x32), assets/trayTemplate.png (16x16)
 const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
@@ -119,9 +119,40 @@ function downsample(src, srcSize, dstSize) {
   return out;
 }
 
+function drawTrayTemplate(size) {
+  const px = Buffer.alloc(size * size * 4);
+  const scale = size / 16;
+  const pts = [[4, 9], [7, 12], [12, 4]].map(([x, y]) => [x * scale, y * scale]);
+  const halfW = 1.6 * scale;
+
+  function distToSeg(x, y, a, b) {
+    const vx = b[0] - a[0], vy = b[1] - a[1];
+    const wx = x - a[0], wy = y - a[1];
+    const t = Math.min(Math.max((wx * vx + wy * vy) / (vx * vx + vy * vy), 0), 1);
+    return Math.hypot(x - (a[0] + t * vx), y - (a[1] + t * vy));
+  }
+
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const d = Math.min(
+        distToSeg(x + 0.5, y + 0.5, pts[0], pts[1]),
+        distToSeg(x + 0.5, y + 0.5, pts[1], pts[2])
+      );
+      const alpha = clamp(halfW + 0.5 - d, 0, 1);
+      const i = (y * size + x) * 4;
+      px[i] = 0;
+      px[i + 1] = 0;
+      px[i + 2] = 0;
+      px[i + 3] = Math.round(alpha * 255);
+    }
+  }
+  return px;
+}
+
 const outDir = path.join(__dirname, '..', 'assets');
 fs.mkdirSync(outDir, { recursive: true });
 const icon = drawIcon(1024);
 fs.writeFileSync(path.join(outDir, 'icon.png'), png(1024, 1024, icon));
 fs.writeFileSync(path.join(outDir, 'tray.png'), png(32, 32, downsample(icon, 1024, 32)));
+fs.writeFileSync(path.join(outDir, 'trayTemplate.png'), png(16, 16, drawTrayTemplate(16)));
 console.log('icons generated:', outDir);
