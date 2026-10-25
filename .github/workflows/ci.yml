@@ -87,3 +87,21 @@ jobs:
             tail -n 120 gui.log
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+  gui-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run GUI smoke test
+        env:
+          ELECTRON_ENABLE_LOGGING: "1"
+        run: npm run test:gui

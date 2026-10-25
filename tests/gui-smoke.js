@@ -5,9 +5,9 @@ const os = require('node:os');
 const path = require('node:path');
 const assert = require('node:assert/strict');
 const { once } = require('node:events');
+const electronBin = require('electron');
 
 const projectRoot = path.join(__dirname, '..');
-const electronBin = path.join(projectRoot, 'node_modules', '.bin', 'electron');
 let electronStderr = '';
 
 function ymd(date) {
@@ -126,9 +126,14 @@ async function run() {
   assert.equal(fs.existsSync(electronBin), true, 'Electron binary is not installed');
   const port = await getFreePort();
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dailylist-gui-'));
+  const env = { ...process.env, HOME: home };
+  if (process.platform === 'win32') {
+    env.APPDATA = home;
+    env.LOCALAPPDATA = path.join(home, 'Local');
+  }
   const app = spawn(electronBin, [projectRoot, `--remote-debugging-port=${port}`], {
     cwd: projectRoot,
-    env: { ...process.env, HOME: home },
+    env,
     stdio: ['ignore', 'pipe', 'pipe'],
   });
 

@@ -19,7 +19,7 @@ npm test
 npm run test:gui
 ```
 
-修改 UI、CI、打包或发布配置后，还必须确认 GitHub Actions 的 `quality` 与 `gui` 两个 job 都成功。
+修改 UI、CI、打包或发布配置后，还必须确认 GitHub Actions 的 `quality`、`gui` 与 `gui-windows` 三个 job 都成功。
 
 ## Linux GUI CI 约定
 
@@ -64,6 +64,12 @@ The SUID sandbox helper binary was found, but is not configured correctly.
 
 注意：Xvfb 环境里可能出现 D-Bus、GPU、dri3 等非致命 warning。只有配合断言失败或进程退出码时才需要处理，不要仅因这些 warning 增加依赖或禁用功能。
 
+## Windows GUI CI 约定
+
+Windows GUI 冒烟测试使用 `windows-latest`，直接运行 `npm run test:gui`。`tests/gui-smoke.js` 通过 Electron npm 包解析实际二进制路径，避免依赖平台专属的 `.bin/electron` 包装脚本；测试会为 Windows 设置独立 `APPDATA`，避免读写开发者真实用户数据。
+
+这项 CI 只能覆盖应用启动、主窗口、任务增删改、搜索、设置弹窗、重复任务生成和渲染进程 IPC。它不能替代 Windows 实机手工冒烟；安装器、托盘交互、系统通知、开机自启和真实重启仍需获得 Windows 设备后验证。
+
 ## 跨平台焦点样式
 
 不要依赖浏览器默认 focus 样式或只在深色模式中定义 `:focus-visible`。本仓库已验证过 Linux 与 macOS 的焦点判定差异会导致同一测试得到 `outline-style: none`。
@@ -89,6 +95,7 @@ The SUID sandbox helper binary was found, but is not configured correctly.
 | `ubuntu-latest` 镜像漂移 | 固定 `ubuntu-24.04` |
 | Electron SUID sandbox 在 Runner 上失败 | 仅 CI 设置 `ELECTRON_DISABLE_SANDBOX=1` |
 | 远端日志缺少具体错误 | GUI 测试输出 GitHub annotation，并写 job summary |
+| Windows GUI 自动化 | 使用 Electron 包二进制路径并隔离 `APPDATA` |
 | Linux/macOS focus 样式不一致 | 显式定义全局 `:focus-visible` 与搜索框 `:focus` |
 | macOS 构建范围 | 仅 `arm64`，不输出 Intel/universal |
 | Release 鉴权 | 使用 `github.token`，不提交 PAT |
