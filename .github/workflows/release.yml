@@ -48,9 +48,21 @@ jobs:
           npm test
 
       - name: Build packages
-        env:
-          ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
-        run: ${{ matrix.build-command }}
+        shell: bash
+        run: |
+          set -o pipefail
+          ${{ matrix.build-command }} 2>&1 | tee build.log
+
+      - name: Publish build log summary
+        if: failure()
+        shell: bash
+        run: |
+          {
+            echo "### Build log"
+            echo '```text'
+            tail -n 200 build.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@v4
         with:
