@@ -8,6 +8,7 @@ const { once } = require('node:events');
 
 const projectRoot = path.join(__dirname, '..');
 const electronBin = path.join(projectRoot, 'node_modules', '.bin', 'electron');
+let electronStderr = '';
 
 function ymd(date) {
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -131,9 +132,8 @@ async function run() {
     stdio: ['ignore', 'pipe', 'pipe'],
   });
 
-  let stderr = '';
   app.stderr.on('data', (chunk) => {
-    stderr += chunk.toString();
+    electronStderr += chunk.toString();
   });
 
   const createdTaskIds = [];
@@ -269,14 +269,19 @@ async function run() {
     }
     fs.rmSync(home, { recursive: true, force: true });
 
-    if (stderr.trim()) {
-      console.error(`Electron stderr:\n${stderr.trim()}`);
+    if (electronStderr.trim()) {
+      console.error(`Electron stderr:\n${electronStderr.trim()}`);
     }
   }
   console.log('GUI smoke test passed');
 }
 
 run().catch((error) => {
-  console.error(error);
+  const details = [
+    error?.stack || String(error),
+    electronStderr.trim() && `Electron stderr:\n${electronStderr.slice(-4000).trim()}`,
+  ].filter(Boolean).join('\n');
+  console.error(`::error::${details.replace(/\r?\n/g, '%0A')}`);
+  console.error(details);
   process.exitCode = 1;
 });
