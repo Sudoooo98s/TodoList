@@ -73,6 +73,7 @@ jobs:
       - name: Run GUI smoke test
         env:
           ELECTRON_ENABLE_LOGGING: "1"
+          ELECTRON_DISABLE_SANDBOX: "1"
         run: |
           set -o pipefail
           xvfb-run -a --server-args="-screen 0 1280x1024x24" npm run test:gui 2>&1 | tee gui.log
