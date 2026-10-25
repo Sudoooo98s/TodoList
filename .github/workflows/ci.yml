@@ -42,7 +42,7 @@ jobs:
         run: npm test
 
   gui:
-    runs-on: macos-14
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
 
@@ -54,5 +54,20 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Install GUI dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            xvfb \
+            libasound2t64 \
+            libatspi2.0-0t64 \
+            libgbm1 \
+            libgtk-3-0t64 \
+            libnss3 \
+            libnotify4 \
+            libsecret-1-0 \
+            libxss1 \
+            libxtst6
+
       - name: Run GUI smoke test
-        run: npm run test:gui
+        run: xvfb-run -a --server-args="-screen 0 1280x1024x24" npm run test:gui

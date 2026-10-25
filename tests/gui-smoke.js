@@ -268,10 +268,10 @@ async function run() {
       if (app.exitCode === null) app.kill('SIGKILL');
     }
     fs.rmSync(home, { recursive: true, force: true });
-  }
 
-  if (stderr.trim()) {
-    console.error(stderr.trim());
+    if (stderr.trim()) {
+      console.error(`Electron stderr:\n${stderr.trim()}`);
+    }
   }
   console.log('GUI smoke test passed');
 }
