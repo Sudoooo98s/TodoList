@@ -2,7 +2,7 @@ const { app, BrowserWindow, Tray, Menu, Notification, ipcMain, screen, dialog, p
 const path = require('path');
 const fs = require('fs');
 
-const APP_NAME = '每日清单';
+const APP_NAME = process.env?.DAILYLIST_INSTANCE_NAME || '每日清单';
 app.setName(APP_NAME);
 // 统一数据目录，保证开发与打包后数据一致：%APPDATA%\每日清单
 const DATA_DIR = path.join(app.getPath('appData'), APP_NAME);
@@ -102,6 +102,13 @@ function normalizeRemindLead(value) {
   return REMIND_LEADS.has(lead) ? lead : null;
 }
 
+function normalizeLabels(value) {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(
+    value.map((label) => String(label).trim().slice(0, 20)).filter(Boolean)
+  )].slice(0, 10);
+}
+
 function generateTaskId(prefix = 't') {
   return `${Date.now()}-${prefix}${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -122,24 +129,28 @@ function assignUniqueId(task, existingIds, prefix = 'n') {
 // 规范化单条任务：修复历史/导入数据中的缺字段与非法值，防止排序 NaN、重复任务生成 NaN 日期等问题
 function normalizeTask(raw, idx = 0) {
   const r = raw && typeof raw === 'object' ? raw : {};
-  const time = isValidTime(r.time) ? r.time : null;
+  let date = ymd(new Date());
+  if (r.date === null) date = null;
+  else if (r.date !== undefined && isValidDate(r.date)) date = r.date;
+  const time = date && isValidTime(r.time) ? r.time : null;
   const remindLead = time ? normalizeRemindLead(r.remindLead) : null;
   const done = !!r.done;
   return {
     id: typeof r.id === 'string' && r.id ? r.id : generateTaskId(),
     title: String(r.title || '').trim().slice(0, 100),
     note: String(r.note || '').slice(0, 500),
-    date: isValidDate(r.date) ? r.date : ymd(new Date()),
+    date,
     time,
     remindLead,
     priority: ['high', 'medium', 'low'].includes(r.priority) ? r.priority : 'medium',
     category: String(r.category || '').slice(0, 20),
-    repeat: ['daily', 'weekly'].includes(r.repeat) ? r.repeat : null,
+    repeat: date && ['daily', 'weekly'].includes(r.repeat) ? r.repeat : null,
     done,
     doneAt: done && Number.isFinite(Number(r.doneAt)) ? Number(r.doneAt) : null,
     reminded: !!r.reminded,
     createdAt: Number.isFinite(Number(r.createdAt)) ? Number(r.createdAt) : Date.now(),
     repeatSourceId: typeof r.repeatSourceId === 'string' && r.repeatSourceId ? r.repeatSourceId : null,
+    labels: normalizeLabels(r.labels),
   };
 }
 
@@ -506,7 +517,7 @@ function registerIpc() {
     if (!t) return { ok: false, error: '任务不存在' };
 
     const source = patch && typeof patch === 'object' ? patch : {};
-    const allowedFields = ['title', 'note', 'date', 'time', 'remindLead', 'priority', 'category', 'repeat'];
+    const allowedFields = ['title', 'note', 'date', 'time', 'remindLead', 'priority', 'category', 'repeat', 'labels'];
     const p = {};
     for (const key of allowedFields) {
       if (key in source) p[key] = source[key];
@@ -515,9 +526,13 @@ function registerIpc() {
       return { ok: false, error: '标题不能为空' };
     }
 
-    if ('date' in p && !isValidDate(p.date)) delete p.date;
+    if ('date' in p) {
+      if (p.date === null || p.date === '') p.date = null;
+      else if (!isValidDate(p.date)) delete p.date;
+    }
     if ('time' in p) {
-      p.time = isValidTime(p.time) ? p.time : null;
+      const targetDate = 'date' in p ? p.date : t.date;
+      p.time = targetDate && isValidTime(p.time) ? p.time : null;
       if ('remindLead' in p) p.remindLead = normalizeRemindLead(p.remindLead);
       if (p.time === null) p.remindLead = null;
     }
@@ -528,17 +543,23 @@ function registerIpc() {
 
     const scheduleFields = ['date', 'time', 'remindLead'];
     let scheduleChanged = false;
-    for (const key of ['title', 'note', 'date', 'time', 'remindLead', 'priority', 'category', 'repeat']) {
+    for (const key of ['title', 'note', 'date', 'time', 'remindLead', 'priority', 'category', 'repeat', 'labels']) {
       if (key in p) {
         let v = p[key];
         if (key === 'title') v = String(v || '').trim().slice(0, 100);
         else if (key === 'note') v = String(v || '').slice(0, 500);
         else if (key === 'priority') v = ['high', 'medium', 'low'].includes(v) ? v : t.priority;
         else if (key === 'category') v = String(v || '').slice(0, 20);
+        else if (key === 'labels') v = normalizeLabels(v);
         else if (key === 'repeat') v = ['daily', 'weekly'].includes(v) ? v : null;
         if (scheduleFields.includes(key) && v !== t[key]) scheduleChanged = true;
         t[key] = v;
       }
+    }
+    if (t.date === null) {
+      t.time = null;
+      t.remindLead = null;
+      t.repeat = null;
     }
     if (scheduleChanged) t.reminded = false; // 计划变更后重新安排提醒
     scheduleSave();

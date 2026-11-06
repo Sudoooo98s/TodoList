@@ -204,6 +204,60 @@ test('normalizes task fields and allowed reminder leads', () => {
   assert.equal(main.normalizeRemindLead('15'), 15);
   assert.equal(main.normalizeRemindLead(15), 15);
   assert.equal(main.normalizeRemindLead(7), null);
+
+  const unscheduled = main.normalizeTask({
+    title: '先记录',
+    date: null,
+    time: '09:30',
+    remindLead: 15,
+    repeat: 'daily',
+    labels: [' 外出 ', '外出', '', '采购'],
+  });
+  assert.equal(unscheduled.date, null);
+  assert.equal(unscheduled.time, null);
+  assert.equal(unscheduled.remindLead, null);
+  assert.equal(unscheduled.repeat, null);
+  assert.deepEqual(JSON.parse(JSON.stringify(unscheduled.labels)), ['外出', '采购']);
+});
+
+test('supports unscheduled inbox tasks and scheduling them through IPC', async () => {
+  const { main, ipcHandlers } = loadMainProcess();
+  main.loadData();
+  main.registerIpc();
+
+  const added = await ipcHandlers.get('task:add')(null, {
+    title: '无日期任务',
+    date: null,
+    time: '10:00',
+    remindLead: 10,
+    repeat: 'daily',
+    labels: ['收件箱', '收件箱', ''],
+  });
+  assert.equal(added.ok, true);
+  assert.equal(added.task.date, null);
+  assert.equal(added.task.time, null);
+  assert.equal(added.task.remindLead, null);
+  assert.equal(added.task.repeat, null);
+  assert.deepEqual(JSON.parse(JSON.stringify(added.task.labels)), ['收件箱']);
+
+  const scheduled = await ipcHandlers.get('task:update')(null, {
+    id: added.task.id,
+    patch: { date: '2026-02-28', time: '10:00', remindLead: 10 },
+  });
+  assert.equal(scheduled.ok, true);
+  assert.equal(scheduled.task.date, '2026-02-28');
+  assert.equal(scheduled.task.time, '10:00');
+  assert.equal(scheduled.task.remindLead, 10);
+
+  const returned = await ipcHandlers.get('task:update')(null, {
+    id: added.task.id,
+    patch: { date: null },
+  });
+  assert.equal(returned.ok, true);
+  assert.equal(returned.task.date, null);
+  assert.equal(returned.task.time, null);
+  assert.equal(returned.task.remindLead, null);
+  assert.equal(returned.task.repeat, null);
 });
 
 test('normalizes settings and drops unknown fields', () => {

@@ -8,14 +8,17 @@ let doneOpen = false;
 let searchQuery = ''; // 当前搜索关键词（小写）
 let calendarMode = false;
 let overdueOpen = true;
-let draggingCalendarTaskId = null;
+let draggingTaskId = null;
 let suppressCalendarClick = false;
+let filterMode = 'day';
+let activeLabel = '';
 
 const $ = (id) => document.getElementById(id);
 
 // ---------- 工具 ----------
 function fmtDateCN(dateStr) {
   const today = ymd(new Date());
+  if (dateStr === null) return '无日期';
   if (dateStr === today) return null; // 今天由调用方特殊处理
   const [, m, d] = dateStr.split('-').map(Number);
   return `${m}月${d}日`;
@@ -54,6 +57,24 @@ function calendarTaskOrder(list) {
   return [...sortTasks(list.filter((t) => !t.done)), ...sortTasks(list.filter((t) => t.done))];
 }
 
+function parseLabels(value) {
+  return [...new Set(
+    value.split(/[,，]/).map((label) => label.trim().slice(0, 20)).filter(Boolean)
+  )].slice(0, 10);
+}
+
+function allLabels() {
+  return [...new Set(tasks.flatMap((task) => task.labels || []))].sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'));
+}
+
+function unscheduledTasks() {
+  return tasks.filter((task) => task.date === null);
+}
+
+function matchesActiveLabel(task) {
+  return !activeLabel || (task.labels || []).includes(activeLabel);
+}
+
 const CHECK_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg>';
 const EDIT_SVG = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 0 0 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>';
 const DEL_SVG = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M6 19a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>';
@@ -64,6 +85,7 @@ const PRI_LABEL = { high: '高', medium: '中', low: '低' };
 
 // ---------- 渲染 ----------
 function render() {
+  renderFilterBar();
   renderHeader();
   renderWeekChart();
   renderCategoryOptions();
@@ -76,6 +98,12 @@ function renderHeader() {
   const titleEl = $('viewTitle');
   if (calendarMode) {
     titleEl.textContent = `${monthLabel(viewDate)} · 月历`;
+  } else if (activeLabel) {
+    titleEl.textContent = `标签：${activeLabel}`;
+  } else if (filterMode === 'overdue') {
+    titleEl.textContent = '逾期未完成任务';
+  } else if (filterMode === 'unscheduled') {
+    titleEl.textContent = '无日期收件箱';
   } else if (viewDate === today) {
     titleEl.textContent = '今天要做的事';
   } else {
@@ -94,9 +122,18 @@ function renderHeader() {
   ).length;
   if (calendarMode) {
     const monthPrefix = viewDate.slice(0, 7);
-    const monthTasks = tasks.filter((t) => t.date.startsWith(monthPrefix));
+    const monthTasks = tasks.filter((t) => t.date && t.date.startsWith(monthPrefix));
     const monthRemain = monthTasks.filter((t) => !t.done).length;
     $('heroSub').textContent = `本月共 ${monthTasks.length} 件 · 未完成 ${monthRemain} 件 · 本周已完成 ${weekDone} 件`;
+  } else if (activeLabel) {
+    const labelTasks = tasks.filter(matchesActiveLabel);
+    $('heroSub').textContent = `#${activeLabel} 共 ${labelTasks.length} 件 · 本周已完成 ${weekDone} 件`;
+  } else if (filterMode === 'overdue') {
+    const overdue = getOverdueTasks();
+    $('heroSub').textContent = `逾期未完成 ${overdue.length} 件 · 本周已完成 ${weekDone} 件`;
+  } else if (filterMode === 'unscheduled') {
+    const inbox = unscheduledTasks();
+    $('heroSub').textContent = `无日期任务 ${inbox.length} 件 · 本周已完成 ${weekDone} 件`;
   } else {
     const dayTasks = tasks.filter((t) => t.date === viewDate);
     const remain = dayTasks.filter((t) => !t.done).length;
@@ -125,6 +162,9 @@ function taskItemHTML(t, opts = {}) {
   }
   chips.push(`<span class="chip pri-${t.priority}">${PRI_LABEL[t.priority] || '中'}优先级</span>`);
   if (t.category) chips.push(`<span class="chip">${escapeHTML(t.category)}</span>`);
+  for (const label of t.labels || []) {
+    chips.push(`<span class="chip label-chip">#${escapeHTML(label)}</span>`);
+  }
   if (t.time) chips.push(`<span class="chip time-chip">${CLOCK_SVG}${t.time}</span>`);
   if (t.time && t.remindLead != null) {
     const label = t.remindLead === 0 ? '到点提醒' : `提前 ${t.remindLead} 分钟提醒`;
@@ -156,14 +196,16 @@ function renderList() {
   const ul = $('taskList');
   ul.innerHTML = '';
   const searchStatus = $('searchStatus');
+  const specialFilter = !searchQuery && (filterMode === 'overdue' || filterMode === 'unscheduled' || !!activeLabel);
   const calendarVisible = calendarMode && !searchQuery;
   $('calendarSection').classList.toggle('hidden', !calendarVisible);
-  ul.classList.toggle('hidden', calendarVisible);
-  $('emptyState').classList.toggle('hidden', calendarVisible);
+  ul.classList.toggle('hidden', calendarVisible || (!calendarMode && filterMode === 'unscheduled'));
+  $('emptyState').classList.toggle('hidden', calendarVisible || (!calendarMode && filterMode === 'unscheduled'));
   $('doneSection').classList.add('hidden');
 
   if (calendarVisible) {
-    renderCalendar();
+    renderCalendar(tasks.filter((task) => task.date && matchesActiveLabel(task)));
+    renderInbox(tasks.filter((task) => task.date === null && matchesActiveLabel(task)));
     renderOverdueSection();
     searchStatus.textContent = '';
     searchStatus.classList.add('hidden');
@@ -174,9 +216,13 @@ function renderList() {
   if (searchQuery) {
     const matches = sortTasks(
       tasks.filter((t) =>
-        `${t.title} ${t.note || ''} ${t.category || ''}`.toLowerCase().includes(searchQuery)
+        `${t.title} ${t.note || ''} ${t.category || ''} ${(t.labels || []).join(' ')}`.toLowerCase().includes(searchQuery)
       )
-    ).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+    ).sort((a, b) => {
+      const da = a.date || '9999-12-31';
+      const db = b.date || '9999-12-31';
+      return da < db ? -1 : da > db ? 1 : 0;
+    });
     for (const t of matches) {
       const li = document.createElement('li');
       li.className = `task p-${t.priority}` + (t.done ? ' done-item' : '');
@@ -194,6 +240,39 @@ function renderList() {
 
   searchStatus.textContent = '';
   searchStatus.classList.add('hidden');
+
+  if (specialFilter) {
+    let matches = [];
+    let emptyText = '';
+    if (filterMode === 'overdue') {
+      matches = getOverdueTasks().filter(matchesActiveLabel);
+      emptyText = '没有逾期未完成任务';
+    } else if (filterMode === 'unscheduled') {
+      matches = sortTasks(unscheduledTasks()).filter(matchesActiveLabel);
+      emptyText = '无日期收件箱是空的';
+      renderInbox(matches);
+    } else if (activeLabel) {
+      matches = sortTasks(tasks.filter(matchesActiveLabel)).sort((a, b) => {
+        const da = a.date || '9999-12-31';
+        const db = b.date || '9999-12-31';
+        return da < db ? -1 : da > db ? 1 : 0;
+      });
+      emptyText = `没有 #${activeLabel} 标签的任务`;
+    }
+    for (const t of matches) {
+      const li = document.createElement('li');
+      li.className = `task p-${t.priority}` + (t.done ? ' done-item' : '');
+      li.dataset.id = t.id;
+      li.innerHTML = taskItemHTML(t, { showDate: filterMode !== 'unscheduled' });
+      ul.appendChild(li);
+    }
+    $('emptyState').classList.toggle('hidden', matches.length > 0);
+    $('emptyText').textContent = emptyText;
+    return;
+  }
+
+  $('inboxSection').classList.add('hidden');
+  $('inboxList').innerHTML = '';
 
   const dayTasks = tasks.filter((t) => t.date === viewDate);
   const unfinished = sortTasks(dayTasks.filter((t) => !t.done));
@@ -235,13 +314,15 @@ function renderList() {
 
 function getOverdueTasks() {
   const today = ymd(new Date());
-  return sortTasks(tasks.filter((t) => !t.done && t.date < today)).sort((a, b) => (
+  return sortTasks(tasks.filter((t) => !t.done && t.date && t.date < today)).sort((a, b) => (
     a.date < b.date ? -1 : a.date > b.date ? 1 : 0
   ));
 }
 
 function renderOverdueSection() {
-  const overdue = viewDate === ymd(new Date()) && !searchQuery ? getOverdueTasks() : [];
+  const overdue = !searchQuery && !activeLabel && (filterMode === 'day' || filterMode === 'today')
+    ? getOverdueTasks()
+    : [];
   const section = $('overdueSection');
   const list = $('overdueList');
   list.innerHTML = '';
@@ -258,13 +339,50 @@ function renderOverdueSection() {
   }
 }
 
-function renderCalendar() {
+function renderFilterBar() {
+  const labels = allLabels();
+  if (activeLabel && !labels.includes(activeLabel)) activeLabel = '';
+  const modes = { day: $('filterDay'), today: $('filterToday'), overdue: $('filterOverdue'), unscheduled: $('filterUnscheduled') };
+  for (const [mode, button] of Object.entries(modes)) {
+    button.classList.toggle('active', !activeLabel && filterMode === mode);
+  }
+  const host = $('labelFilters');
+  host.innerHTML = '';
+  for (const label of labels) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'filter-btn label-filter';
+    button.textContent = `#${label}`;
+    button.setAttribute('aria-label', `筛选标签 ${label}`);
+    button.classList.toggle('active', activeLabel === label);
+    button.dataset.label = label;
+    host.appendChild(button);
+  }
+}
+
+function renderInbox(list) {
+  const section = $('inboxSection');
+  const inboxList = $('inboxList');
+  inboxList.innerHTML = '';
+  section.classList.toggle('hidden', list.length === 0);
+  $('inboxCount').textContent = `无日期收件箱 (${list.length})`;
+  for (const task of list) {
+    const li = document.createElement('li');
+    li.className = `task inbox-item p-${task.priority}` + (task.done ? ' done-item' : '');
+    li.dataset.id = task.id;
+    li.innerHTML = taskItemHTML(task);
+    li.draggable = true;
+    inboxList.appendChild(li);
+  }
+}
+
+function renderCalendar(visibleTasks) {
   const grid = $('calendarGrid');
   grid.innerHTML = '';
   const [currentYear, currentMonth] = viewDate.split('-').map(Number);
   const today = ymd(new Date());
   const tasksByDate = new Map();
-  for (const task of tasks) {
+  for (const task of visibleTasks) {
     if (!tasksByDate.has(task.date)) tasksByDate.set(task.date, []);
     tasksByDate.get(task.date).push(task);
   }
@@ -351,23 +469,30 @@ function renderWeekChart() {
 }
 
 // ---------- 表单 ----------
-function syncRemindField() {
-  // 未设定时间时提醒不可用（提醒依赖具体时间点）
-  const hasTime = !!$('fTime').value;
+function syncScheduleFields() {
+  const hasDate = !!$('fDate').value;
+  const hasTime = hasDate && !!$('fTime').value;
+  $('fTime').disabled = !hasDate;
+  $('fRepeat').disabled = !hasDate;
   const sel = $('fRemind');
   sel.disabled = !hasTime;
   if (!hasTime) sel.value = '';
+  if (!hasDate) {
+    $('fTime').value = '';
+    $('fRepeat').value = '';
+  }
 }
 
 function formValues() {
   return {
     title: $('quickInput').value.trim(),
-    date: $('fDate').value || viewDate,
-    time: $('fTime').value || null,
+    date: $('fDate').value || null,
+    time: $('fDate').value && $('fTime').value ? $('fTime').value : null,
     remindLead: $('fTime').value ? $('fRemind').value : '',
-    repeat: $('fRepeat').value || null,
+    repeat: $('fDate').value && $('fRepeat').value ? $('fRepeat').value : null,
     priority: $('fPriority').value,
     category: $('fCategory').value,
+    labels: parseLabels($('fLabels').value),
     note: $('fNote').value.trim(),
   };
 }
@@ -376,11 +501,12 @@ function resetForm() {
   $('quickInput').value = '';
   $('fDate').value = viewDate;
   $('fTime').value = '';
-  syncRemindField();
+  syncScheduleFields();
   $('fRemind').value = '15';
   $('fRepeat').value = '';
   $('fPriority').value = 'medium';
   $('fCategory').value = '';
+  $('fLabels').value = '';
   $('fNote').value = '';
   editingId = null;
   $('addBtn').textContent = '添加';
@@ -390,13 +516,14 @@ function resetForm() {
 function startEdit(t) {
   editingId = t.id;
   $('quickInput').value = t.title;
-  $('fDate').value = t.date;
+  $('fDate').value = t.date || '';
   $('fTime').value = t.time || '';
-  syncRemindField();
+  syncScheduleFields();
   $('fRemind').value = t.remindLead == null ? '' : String(t.remindLead);
   $('fRepeat').value = t.repeat || '';
   $('fPriority').value = t.priority;
   $('fCategory').value = t.category || '';
+  $('fLabels').value = (t.labels || []).join('，');
   $('fNote').value = t.note || '';
   $('detailPanel').classList.remove('hidden');
   $('toggleDetail').classList.add('open');
@@ -449,8 +576,15 @@ $('quickInput').addEventListener('keydown', (e) => {
 });
 
 // 时间变化时联动提醒下拉框
-$('fTime').addEventListener('input', syncRemindField);
-$('fTime').addEventListener('change', syncRemindField);
+$('fDate').addEventListener('input', syncScheduleFields);
+$('fDate').addEventListener('change', syncScheduleFields);
+$('fTime').addEventListener('input', syncScheduleFields);
+$('fTime').addEventListener('change', syncScheduleFields);
+
+$('clearDate').addEventListener('click', () => {
+  $('fDate').value = '';
+  syncScheduleFields();
+});
 
 $('toggleDetail').addEventListener('click', () => {
   const p = $('detailPanel');
@@ -461,7 +595,7 @@ $('toggleDetail').addEventListener('click', () => {
 $('cancelEdit').addEventListener('click', resetForm);
 
 // 任务列表事件（事件委托）
-for (const listId of ['taskList', 'doneList', 'overdueList']) {
+for (const listId of ['taskList', 'doneList', 'overdueList', 'inboxList']) {
   $(listId).addEventListener('click', async (e) => {
     const li = e.target.closest('li.task');
     if (!li) return;
@@ -486,6 +620,23 @@ for (const listId of ['taskList', 'doneList', 'overdueList']) {
   });
 }
 
+$('filterBar').addEventListener('click', (e) => {
+  const button = e.target.closest('button');
+  if (!button) return;
+  exitSearch();
+  if (button.dataset.label) {
+    activeLabel = activeLabel === button.dataset.label ? '' : button.dataset.label;
+    filterMode = activeLabel ? 'label' : 'day';
+  } else {
+    activeLabel = '';
+    filterMode = button.dataset.filter;
+  }
+  if (filterMode === 'today') viewDate = ymd(new Date());
+  if (filterMode === 'unscheduled') calendarMode = true;
+  else if (filterMode !== 'label') calendarMode = false;
+  render();
+});
+
 // 逾期折叠
 $('overdueToggle').addEventListener('click', () => {
   overdueOpen = !overdueOpen;
@@ -494,12 +645,16 @@ $('overdueToggle').addEventListener('click', () => {
 
 // 月历视图切换
 $('dayViewBtn').addEventListener('click', () => {
+  activeLabel = '';
+  filterMode = 'day';
   calendarMode = false;
   render();
 });
 
 $('monthViewBtn').addEventListener('click', () => {
   exitSearch();
+  activeLabel = '';
+  filterMode = 'day';
   calendarMode = true;
   render();
 });
@@ -519,7 +674,7 @@ $('calendarGrid').addEventListener('click', (e) => {
 $('calendarGrid').addEventListener('dragstart', (e) => {
   const item = e.target.closest('.cal-task');
   if (!item?.dataset.id) return;
-  draggingCalendarTaskId = item.dataset.id;
+  draggingTaskId = item.dataset.id;
   item.classList.add('dragging');
   if (e.dataTransfer) {
     e.dataTransfer.setData('text/plain', item.dataset.id);
@@ -528,7 +683,7 @@ $('calendarGrid').addEventListener('dragstart', (e) => {
 });
 
 $('calendarGrid').addEventListener('dragover', (e) => {
-  if (!draggingCalendarTaskId) return;
+  if (!draggingTaskId) return;
   const cell = e.target.closest('.cal-cell');
   if (!cell?.dataset.date) return;
   e.preventDefault();
@@ -542,15 +697,15 @@ $('calendarGrid').addEventListener('dragleave', (e) => {
 });
 
 $('calendarGrid').addEventListener('drop', async (e) => {
-  if (!draggingCalendarTaskId) return;
+  if (!draggingTaskId) return;
   const cell = e.target.closest('.cal-cell');
   if (!cell?.dataset.date) return;
   e.preventDefault();
   cell.classList.remove('drop-target');
-  const task = tasks.find((item) => item.id === draggingCalendarTaskId);
+  const task = tasks.find((item) => item.id === draggingTaskId);
   const date = cell.dataset.date;
-  const draggedId = draggingCalendarTaskId;
-  draggingCalendarTaskId = null;
+  const draggedId = draggingTaskId;
+  draggingTaskId = null;
   suppressCalendarClick = true;
   setTimeout(() => { suppressCalendarClick = false; }, 0);
   if (task && task.date !== date) {
@@ -563,8 +718,25 @@ $('calendarGrid').addEventListener('drop', async (e) => {
 $('calendarGrid').addEventListener('dragend', (e) => {
   const item = e.target.closest('.cal-task');
   if (item) item.classList.remove('dragging');
-  draggingCalendarTaskId = null;
+  draggingTaskId = null;
   document.querySelectorAll('.cal-cell.drop-target').forEach((cell) => cell.classList.remove('drop-target'));
+});
+
+$('inboxList').addEventListener('dragstart', (e) => {
+  const item = e.target.closest('li.task');
+  if (!item?.dataset.id) return;
+  draggingTaskId = item.dataset.id;
+  item.classList.add('dragging');
+  if (e.dataTransfer) {
+    e.dataTransfer.setData('text/plain', item.dataset.id);
+    e.dataTransfer.effectAllowed = 'move';
+  }
+});
+
+$('inboxList').addEventListener('dragend', (e) => {
+  const item = e.target.closest('li.task');
+  if (item) item.classList.remove('dragging');
+  draggingTaskId = null;
 });
 
 // 日期导航
@@ -580,6 +752,9 @@ $('nextDay').addEventListener('click', () => {
 });
 $('todayBtn').addEventListener('click', () => {
   exitSearch();
+  activeLabel = '';
+  filterMode = 'today';
+  calendarMode = false;
   viewDate = ymd(new Date());
   render();
 });

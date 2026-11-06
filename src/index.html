@@ -102,18 +102,39 @@
             <span class="field-label">分类</span>
             <select id="fCategory"></select>
           </label>
+          <label class="field">
+            <span class="field-label">标签（逗号分隔）</span>
+            <input type="text" id="fLabels" maxlength="240" placeholder="例如：外出，采购" autocomplete="off" />
+          </label>
         </div>
         <label class="field field-wide">
           <span class="field-label">备注（可选）</span>
           <textarea id="fNote" rows="2" maxlength="500" placeholder="补充细节…"></textarea>
         </label>
         <div class="detail-actions">
+          <button id="clearDate" class="text-btn" type="button">暂不安排日期</button>
           <button id="cancelEdit" class="text-btn hidden">取消编辑</button>
         </div>
       </div>
     </section>
 
+    <nav id="filterBar" class="filter-bar" aria-label="任务筛选">
+      <button id="filterDay" class="filter-btn active" type="button" data-filter="day">本日</button>
+      <button id="filterToday" class="filter-btn" type="button" data-filter="today">今天</button>
+      <button id="filterOverdue" class="filter-btn" type="button" data-filter="overdue">逾期</button>
+      <button id="filterUnscheduled" class="filter-btn" type="button" data-filter="unscheduled">无日期</button>
+      <span id="labelFilters" class="label-filters"></span>
+    </nav>
+
     <main class="content">
+      <section id="inboxSection" class="inbox-section hidden" aria-labelledby="inboxCount">
+        <div class="inbox-head">
+          <span id="inboxCount" class="inbox-count">无日期收件箱 (0)</span>
+          <span class="inbox-hint">可拖到月历日期格安排</span>
+        </div>
+        <ul id="inboxList" class="task-list inbox-list"></ul>
+      </section>
+
       <section id="overdueSection" class="overdue-section hidden" aria-labelledby="overdueCount">
         <button id="overdueToggle" class="done-toggle overdue-toggle">
           <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>

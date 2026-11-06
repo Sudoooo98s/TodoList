@@ -213,6 +213,51 @@ body {
   margin-bottom: 18px;
 }
 
+/* ---------- 筛选与标签 ---------- */
+.filter-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: -6px 0 14px;
+}
+
+.filter-btn {
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text-sub);
+  border-radius: 999px;
+  padding: 5px 11px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.filter-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.filter-btn.active {
+  background: #eef2ff;
+  border-color: rgba(99, 102, 241, 0.35);
+  color: var(--accent-dark);
+  font-weight: 700;
+}
+
+.label-filters {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip.label-chip {
+  background: #ede9fe;
+  color: #6d28d9;
+  font-weight: 600;
+}
+
 .add-row {
   display: flex;
   gap: 8px;
@@ -373,6 +418,46 @@ body {
   background: rgba(239, 68, 68, 0.05);
   border-radius: 12px;
   padding: 6px 8px;
+}
+
+/* ---------- 无日期收件箱 ---------- */
+.inbox-section {
+  margin-bottom: 14px;
+  border: 1px dashed var(--border);
+  background: rgba(99, 102, 241, 0.05);
+  border-radius: 12px;
+  padding: 10px;
+}
+
+.inbox-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.inbox-count {
+  color: var(--accent-dark);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.inbox-hint {
+  color: var(--text-sub);
+  font-size: 11.5px;
+}
+
+.inbox-list {
+  margin-top: 0;
+}
+
+.inbox-item {
+  cursor: grab;
+}
+
+.inbox-item.dragging {
+  opacity: 0.55;
 }
 
 .overdue-toggle {
@@ -1090,6 +1175,26 @@ textarea:focus-visible {
   .chip.date-chip {
     background: rgba(148, 163, 184, 0.15);
     color: #94a3b8;
+  }
+
+  .filter-btn {
+    background: #171a22;
+  }
+
+  .filter-btn.active {
+    background: #2f3445;
+    border-color: rgba(129, 140, 248, 0.4);
+    color: var(--accent);
+  }
+
+  .chip.label-chip {
+    background: rgba(139, 92, 246, 0.2);
+    color: #c4b5fd;
+  }
+
+  .inbox-section {
+    border-color: #3a3f50;
+    background: rgba(99, 102, 241, 0.1);
   }
 
   .view-btn.active {

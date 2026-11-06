@@ -70,6 +70,8 @@ Windows GUI 冒烟测试使用 `windows-latest`，直接运行 `npm run test:gui
 
 这项 CI 只能覆盖应用启动、主窗口、任务增删改、搜索、设置弹窗、重复任务生成和渲染进程 IPC。它不能替代 Windows 实机手工冒烟；安装器、托盘交互、系统通知、开机自启和真实重启仍需获得 Windows 设备后验证。
 
+`tests/gui-smoke.js` 会为每个 Electron 进程设置独立的 `DAILYLIST_INSTANCE_NAME`。这样可以避免本地同时打开开发版应用时，`requestSingleInstanceLock()` 让冒烟测试的第二实例提前退出。
+
 ## 跨平台焦点样式
 
 不要依赖浏览器默认 focus 样式或只在深色模式中定义 `:focus-visible`。本仓库已验证过 Linux 与 macOS 的焦点判定差异会导致同一测试得到 `outline-style: none`。

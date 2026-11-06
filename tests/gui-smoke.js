@@ -126,7 +126,11 @@ async function run() {
   assert.equal(fs.existsSync(electronBin), true, 'Electron binary is not installed');
   const port = await getFreePort();
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dailylist-gui-'));
-  const env = { ...process.env, HOME: home };
+  const env = {
+    ...process.env,
+    HOME: home,
+    DAILYLIST_INSTANCE_NAME: `dailylist-gui-smoke-${Date.now()}`,
+  };
   if (process.platform === 'win32') {
     env.APPDATA = home;
     env.LOCALAPPDATA = path.join(home, 'Local');
@@ -192,6 +196,62 @@ async function run() {
       true
     );
 
+    const unscheduledTask = await evaluate(
+      connection,
+      `window.api.addTask(${JSON.stringify({
+        title: 'GUI 收件箱自验证',
+        date: null,
+        time: '10:00',
+        remindLead: 10,
+        repeat: 'daily',
+        labels: ['GUI标签', 'GUI标签'],
+      })})`
+    );
+    assert.equal(unscheduledTask.ok, true, JSON.stringify(unscheduledTask));
+    assert.equal(unscheduledTask.task.date, null);
+    assert.equal(unscheduledTask.task.time, null);
+    assert.deepEqual(unscheduledTask.task.labels, ['GUI标签']);
+    createdTaskIds.push(unscheduledTask.task.id);
+
+    await evaluate(connection, 'document.getElementById("filterUnscheduled").click()');
+    await waitForPageExpression(
+      connection,
+      '[...document.querySelectorAll("#inboxList .task-title")].some((el) => el.textContent.trim() === "GUI 收件箱自验证")'
+    );
+    assert.equal(await evaluate(connection, 'document.getElementById("viewTitle").textContent.includes("月历")'), true);
+
+    await evaluate(
+      connection,
+      `(() => {
+        const dataTransfer = new DataTransfer();
+        const source = [...document.querySelectorAll("#inboxList li.task")]
+          .find((el) => el.textContent.includes("GUI 收件箱自验证"));
+        const target = document.querySelector(${JSON.stringify(`[data-date="${tomorrow}"]`)});
+        source.dispatchEvent(new DragEvent("dragstart", { bubbles: true, cancelable: true, dataTransfer }));
+        target.dispatchEvent(new DragEvent("dragover", { bubbles: true, cancelable: true, dataTransfer }));
+        target.dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer }));
+        source.dispatchEvent(new DragEvent("dragend", { bubbles: true, cancelable: true }));
+        return true;
+      })()`
+    );
+
+    await waitForPageExpression(
+      connection,
+      `window.api.getData().then((data) => data.tasks.find((task) => task.id === ${JSON.stringify(unscheduledTask.task.id)})?.date === ${JSON.stringify(tomorrow)})`
+    );
+
+    await evaluate(connection, 'document.getElementById("dayViewBtn").click()');
+    await evaluate(connection, 'document.querySelector(".label-filter").click()');
+    assert.equal(await evaluate(connection, 'document.getElementById("viewTitle").textContent'), '标签：GUI标签');
+    assert.equal(
+      await evaluate(
+        connection,
+        '[...document.querySelectorAll("#taskList .task-title")].some((el) => el.textContent.trim() === "GUI 收件箱自验证")'
+      ),
+      true
+    );
+    await evaluate(connection, 'document.getElementById("dayViewBtn").click()');
+
     await evaluate(connection, 'document.getElementById("monthViewBtn").click()');
     await waitForPageExpression(
       connection,
@@ -250,9 +310,9 @@ async function run() {
     assert.equal(await evaluate(connection, 'document.getElementById("searchStatus").textContent'), '找到 1 项');
 
     await evaluate(connection, 'document.getElementById("searchInput").focus()');
-    assert.equal(
-      await evaluate(connection, 'getComputedStyle(document.getElementById("searchInput")).outlineStyle'),
-      'solid'
+    await waitForPageExpression(
+      connection,
+      'document.activeElement === document.getElementById("searchInput") && getComputedStyle(document.activeElement).outlineStyle === "solid"'
     );
 
     await evaluate(connection, 'document.getElementById("prevDay").click()');
