@@ -309,6 +309,7 @@ async function run() {
     assert.equal(searchResults.includes('GUI 自验证任务'), true);
     assert.equal(await evaluate(connection, 'document.getElementById("searchStatus").textContent'), '找到 1 项');
 
+    await connection.send('Page.bringToFront');
     await evaluate(connection, 'document.getElementById("searchInput").focus()');
     await waitForPageExpression(
       connection,

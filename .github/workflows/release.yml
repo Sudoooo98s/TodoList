@@ -21,7 +21,7 @@ jobs:
             build-command: npm run dist
             artifact-path: release/*.exe
           - os-name: macOS
-            os: macos-14
+            os: macos-latest
             build-command: npm run dist:mac
             artifact-path: |
               release/*.dmg
