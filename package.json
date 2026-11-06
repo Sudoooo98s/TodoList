@@ -1,6 +1,6 @@
 {
   "name": "dailylist",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "每日清单 - Windows / macOS 桌面待办小工具",
   "main": "main.js",
   "author": "user",

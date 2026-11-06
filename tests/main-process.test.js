@@ -195,7 +195,7 @@ test('normalizes task fields and allowed reminder leads', () => {
   });
 
   assert.equal(task.title, '需求评审');
-  assert.equal(task.date, new Date().toISOString().slice(0, 10));
+  assert.equal(task.date, localDate(new Date()));
   assert.equal(task.time, '09:30');
   assert.equal(task.remindLead, null);
   assert.equal(task.priority, 'medium');
