@@ -340,6 +340,14 @@ test('reminder scheduling honors due, future, missed, and schedule changes', asy
   });
   assert.equal(updated.ok, true);
   assert.equal(updated.task.reminded, false);
+
+  tasks.find((task) => task.id === 'due').reminded = true;
+  const moved = await ipcHandlers.get('task:update')(null, {
+    id: 'due',
+    patch: { date: localDate(new Date(fixedNow + 24 * 60 * 60 * 1000)) },
+  });
+  assert.equal(moved.ok, true);
+  assert.equal(moved.task.reminded, false);
 });
 
 test('reminder scheduling resumes reminders missed within the sleep window', () => {

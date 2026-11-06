@@ -153,6 +153,7 @@ async function run() {
 
     const today = ymd(new Date());
     const tomorrow = addDays(today, 1);
+    const yesterday = addDays(today, -1);
     const added = await evaluate(
       connection,
       `window.api.addTask(${JSON.stringify({
@@ -166,6 +167,67 @@ async function run() {
     assert.equal(added.ok, true, JSON.stringify(added));
     createdTaskIds.push(added.task.id);
 
+    await waitForPageExpression(
+      connection,
+      '[...document.querySelectorAll("#taskList .task-title")].some((el) => el.textContent.trim() === "GUI 自验证任务")'
+    );
+
+    const overdueTask = await evaluate(
+      connection,
+      `window.api.addTask(${JSON.stringify({
+        title: 'GUI 逾期自验证',
+        date: yesterday,
+        priority: 'medium',
+      })})`
+    );
+    assert.equal(overdueTask.ok, true, JSON.stringify(overdueTask));
+    createdTaskIds.push(overdueTask.task.id);
+
+    await waitForPageExpression(
+      connection,
+      '[...document.querySelectorAll("#overdueList .task-title")].some((el) => el.textContent.trim() === "GUI 逾期自验证")'
+    );
+    assert.equal(
+      await evaluate(connection, '!document.getElementById("overdueSection").classList.contains("hidden")'),
+      true
+    );
+
+    await evaluate(connection, 'document.getElementById("monthViewBtn").click()');
+    await waitForPageExpression(
+      connection,
+      '[...document.querySelectorAll("#calendarGrid .cal-task")].some((el) => el.textContent.trim().includes("GUI 自验证任务"))'
+    );
+    assert.equal(await evaluate(connection, 'document.getElementById("viewTitle").textContent.includes("月历")'), true);
+
+    await evaluate(
+      connection,
+      `(() => {
+        const dataTransfer = new DataTransfer();
+        const source = [...document.querySelectorAll("#calendarGrid .cal-task")]
+          .find((el) => el.textContent.trim().includes("GUI 自验证任务"));
+        const target = document.querySelector(${JSON.stringify(`[data-date="${tomorrow}"]`)});
+        source.dispatchEvent(new DragEvent("dragstart", { bubbles: true, cancelable: true, dataTransfer }));
+        target.dispatchEvent(new DragEvent("dragover", { bubbles: true, cancelable: true, dataTransfer }));
+        target.dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer }));
+        source.dispatchEvent(new DragEvent("dragend", { bubbles: true, cancelable: true }));
+        return true;
+      })()`
+    );
+
+    await waitForPageExpression(
+      connection,
+      `window.api.getData().then((data) => data.tasks.find((task) => task.id === ${JSON.stringify(added.task.id)})?.date === ${JSON.stringify(tomorrow)})`
+    );
+
+    await evaluate(
+      connection,
+      `(() => {
+        const item = [...document.querySelectorAll("#calendarGrid .cal-task")]
+          .find((el) => el.textContent.trim().includes("GUI 自验证任务"));
+        item.click();
+        return true;
+      })()`
+    );
     await waitForPageExpression(
       connection,
       '[...document.querySelectorAll("#taskList .task-title")].some((el) => el.textContent.trim() === "GUI 自验证任务")'

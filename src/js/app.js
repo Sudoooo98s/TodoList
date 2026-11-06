@@ -6,6 +6,10 @@ let viewDate = ymd(new Date()); // 当前查看的日期
 let editingId = null; // 正在编辑的任务 id
 let doneOpen = false;
 let searchQuery = ''; // 当前搜索关键词（小写）
+let calendarMode = false;
+let overdueOpen = true;
+let draggingCalendarTaskId = null;
+let suppressCalendarClick = false;
 
 const $ = (id) => document.getElementById(id);
 
@@ -22,6 +26,32 @@ function weekStart() {
   const day = now.getDay() === 0 ? 7 : now.getDay(); // 周一为一周开始
   const dt = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (day - 1));
   return dt;
+}
+
+function addMonths(dateStr, n) {
+  const [year, month] = dateStr.split('-').map(Number);
+  return ymd(new Date(year, month - 1 + n, 1));
+}
+
+function monthGridDates() {
+  const [year, month] = viewDate.split('-').map(Number);
+  const firstDay = new Date(year, month - 1, 1);
+  const offset = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
+  const startDate = new Date(year, month - 1, 1 - offset);
+  const dates = [];
+  for (let i = 0; i < 42; i++) {
+    dates.push(ymd(new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() + i)));
+  }
+  return dates;
+}
+
+function monthLabel(dateStr) {
+  const [year, month] = dateStr.split('-').map(Number);
+  return `${year}年${month}月`;
+}
+
+function calendarTaskOrder(list) {
+  return [...sortTasks(list.filter((t) => !t.done)), ...sortTasks(list.filter((t) => t.done))];
 }
 
 const CHECK_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg>';
@@ -44,20 +74,35 @@ function render() {
 function renderHeader() {
   const today = ymd(new Date());
   const titleEl = $('viewTitle');
-  if (viewDate === today) {
+  if (calendarMode) {
+    titleEl.textContent = `${monthLabel(viewDate)} · 月历`;
+  } else if (viewDate === today) {
     titleEl.textContent = '今天要做的事';
   } else {
     titleEl.textContent = `${fmtDateCN(viewDate)}要做的事`;
   }
   $('todayBtn').classList.toggle('active', viewDate === today);
+  $('dayViewBtn').classList.toggle('active', !calendarMode);
+  $('monthViewBtn').classList.toggle('active', calendarMode);
+  $('prevDay').title = calendarMode ? '上一月' : '前一天';
+  $('prevDay').setAttribute('aria-label', calendarMode ? '查看上一月' : '查看前一天');
+  $('nextDay').title = calendarMode ? '下一月' : '后一天';
+  $('nextDay').setAttribute('aria-label', calendarMode ? '查看下一月' : '查看后一天');
 
-  const dayTasks = tasks.filter((t) => t.date === viewDate);
-  const remain = dayTasks.filter((t) => !t.done).length;
   const weekDone = tasks.filter(
     (t) => t.done && t.doneAt && t.doneAt >= weekStart().getTime()
   ).length;
-  const dateLabel = viewDate === today ? '今天' : fmtDateCN(viewDate);
-  $('heroSub').textContent = `${dateLabel}还剩 ${remain} 件 · 本周已完成 ${weekDone} 件`;
+  if (calendarMode) {
+    const monthPrefix = viewDate.slice(0, 7);
+    const monthTasks = tasks.filter((t) => t.date.startsWith(monthPrefix));
+    const monthRemain = monthTasks.filter((t) => !t.done).length;
+    $('heroSub').textContent = `本月共 ${monthTasks.length} 件 · 未完成 ${monthRemain} 件 · 本周已完成 ${weekDone} 件`;
+  } else {
+    const dayTasks = tasks.filter((t) => t.date === viewDate);
+    const remain = dayTasks.filter((t) => !t.done).length;
+    const dateLabel = viewDate === today ? '今天' : fmtDateCN(viewDate);
+    $('heroSub').textContent = `${dateLabel}还剩 ${remain} 件 · 本周已完成 ${weekDone} 件`;
+  }
 }
 
 function renderCategoryOptions() {
@@ -88,6 +133,9 @@ function taskItemHTML(t, opts = {}) {
   if (t.repeat) {
     chips.push(`<span class="chip repeat-chip">${REPEAT_SVG}${REPEAT_LABEL[t.repeat] || ''}</span>`);
   }
+  if (opts.showOverdue) {
+    chips.push('<span class="chip overdue-chip">逾期</span>');
+  }
   const noteHTML = t.note
     ? `<div class="task-note">${escapeHTML(t.note)}</div>`
     : '';
@@ -108,6 +156,19 @@ function renderList() {
   const ul = $('taskList');
   ul.innerHTML = '';
   const searchStatus = $('searchStatus');
+  const calendarVisible = calendarMode && !searchQuery;
+  $('calendarSection').classList.toggle('hidden', !calendarVisible);
+  ul.classList.toggle('hidden', calendarVisible);
+  $('emptyState').classList.toggle('hidden', calendarVisible);
+  $('doneSection').classList.add('hidden');
+
+  if (calendarVisible) {
+    renderCalendar();
+    renderOverdueSection();
+    searchStatus.textContent = '';
+    searchStatus.classList.add('hidden');
+    return;
+  }
 
   // 搜索模式：跨日期匹配标题/备注/分类，未完成与已完成混排并显示日期
   if (searchQuery) {
@@ -125,7 +186,7 @@ function renderList() {
     }
     $('emptyState').classList.toggle('hidden', matches.length > 0);
     $('emptyText').textContent = '没有找到匹配的任务';
-    $('doneSection').classList.add('hidden');
+    renderOverdueSection();
     searchStatus.textContent = `找到 ${matches.length} 项`;
     searchStatus.classList.remove('hidden');
     return;
@@ -137,6 +198,7 @@ function renderList() {
   const dayTasks = tasks.filter((t) => t.date === viewDate);
   const unfinished = sortTasks(dayTasks.filter((t) => !t.done));
   const done = sortTasks(dayTasks.filter((t) => t.done));
+  renderOverdueSection();
 
   for (const t of unfinished) {
     const li = document.createElement('li');
@@ -146,7 +208,7 @@ function renderList() {
     ul.appendChild(li);
   }
 
-  $('emptyState').classList.toggle('hidden', dayTasks.length > 0);
+  $('emptyState').classList.toggle('hidden', dayTasks.length > 0 || getOverdueTasks().length > 0);
   $('emptyText').textContent =
     viewDate === ymd(new Date()) ? '今天没有待办事项，添加一件吧' : '这一天没有待办事项';
 
@@ -168,6 +230,86 @@ function renderList() {
     }
   } else {
     doneSec.classList.add('hidden');
+  }
+}
+
+function getOverdueTasks() {
+  const today = ymd(new Date());
+  return sortTasks(tasks.filter((t) => !t.done && t.date < today)).sort((a, b) => (
+    a.date < b.date ? -1 : a.date > b.date ? 1 : 0
+  ));
+}
+
+function renderOverdueSection() {
+  const overdue = viewDate === ymd(new Date()) && !searchQuery ? getOverdueTasks() : [];
+  const section = $('overdueSection');
+  const list = $('overdueList');
+  list.innerHTML = '';
+  section.classList.toggle('hidden', overdue.length === 0);
+  $('overdueCount').textContent = `逾期未完成 (${overdue.length})`;
+  $('overdueToggle').classList.toggle('open', overdueOpen);
+  list.classList.toggle('hidden', !overdueOpen);
+  for (const task of overdue) {
+    const li = document.createElement('li');
+    li.className = `task overdue-item p-${task.priority}`;
+    li.dataset.id = task.id;
+    li.innerHTML = taskItemHTML(task, { showDate: true, showOverdue: true });
+    list.appendChild(li);
+  }
+}
+
+function renderCalendar() {
+  const grid = $('calendarGrid');
+  grid.innerHTML = '';
+  const [currentYear, currentMonth] = viewDate.split('-').map(Number);
+  const today = ymd(new Date());
+  const tasksByDate = new Map();
+  for (const task of tasks) {
+    if (!tasksByDate.has(task.date)) tasksByDate.set(task.date, []);
+    tasksByDate.get(task.date).push(task);
+  }
+
+  for (const date of monthGridDates()) {
+    const [year, month, day] = date.split('-').map(Number);
+    const cell = document.createElement('li');
+    cell.className = 'cal-cell';
+    cell.dataset.date = date;
+    if (year !== currentYear || month !== currentMonth) cell.classList.add('other-month');
+    if (date === today) cell.classList.add('today');
+    if (date === viewDate) cell.classList.add('selected');
+
+    const dayButton = document.createElement('button');
+    dayButton.type = 'button';
+    dayButton.className = 'cal-day';
+    dayButton.textContent = day;
+    dayButton.setAttribute('aria-label', `${month}月${day}日`);
+    cell.appendChild(dayButton);
+
+    const taskHost = document.createElement('div');
+    taskHost.className = 'cal-tasks';
+    const dayTasks = calendarTaskOrder(tasksByDate.get(date) || []);
+    for (const task of dayTasks.slice(0, 3)) {
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = `cal-task p-${task.priority}` + (task.done ? ' done' : '') + (date < today && !task.done ? ' overdue' : '');
+      item.draggable = true;
+      item.dataset.id = task.id;
+      item.dataset.date = date;
+      item.textContent = task.time ? `${task.time} ${task.title}` : task.title;
+      item.title = `${month}月${day}日 · ${task.title}`;
+      item.setAttribute('aria-label', `${date} ${task.time || ''} ${task.title}`);
+      taskHost.appendChild(item);
+    }
+    if (dayTasks.length > 3) {
+      const more = document.createElement('button');
+      more.type = 'button';
+      more.className = 'cal-more';
+      more.textContent = `还有 ${dayTasks.length - 3} 件`;
+      more.dataset.date = date;
+      taskHost.appendChild(more);
+    }
+    cell.appendChild(taskHost);
+    grid.appendChild(cell);
   }
 }
 
@@ -319,7 +461,7 @@ $('toggleDetail').addEventListener('click', () => {
 $('cancelEdit').addEventListener('click', resetForm);
 
 // 任务列表事件（事件委托）
-for (const listId of ['taskList', 'doneList']) {
+for (const listId of ['taskList', 'doneList', 'overdueList']) {
   $(listId).addEventListener('click', async (e) => {
     const li = e.target.closest('li.task');
     if (!li) return;
@@ -344,15 +486,96 @@ for (const listId of ['taskList', 'doneList']) {
   });
 }
 
+// 逾期折叠
+$('overdueToggle').addEventListener('click', () => {
+  overdueOpen = !overdueOpen;
+  renderOverdueSection();
+});
+
+// 月历视图切换
+$('dayViewBtn').addEventListener('click', () => {
+  calendarMode = false;
+  render();
+});
+
+$('monthViewBtn').addEventListener('click', () => {
+  exitSearch();
+  calendarMode = true;
+  render();
+});
+
+$('calendarGrid').addEventListener('click', (e) => {
+  if (suppressCalendarClick) return;
+  const item = e.target.closest('.cal-task, .cal-more');
+  const day = e.target.closest('.cal-day');
+  const cell = (item || day)?.closest('.cal-cell');
+  if (!cell?.dataset.date) return;
+  viewDate = cell.dataset.date;
+  calendarMode = false;
+  exitSearch();
+  render();
+});
+
+$('calendarGrid').addEventListener('dragstart', (e) => {
+  const item = e.target.closest('.cal-task');
+  if (!item?.dataset.id) return;
+  draggingCalendarTaskId = item.dataset.id;
+  item.classList.add('dragging');
+  if (e.dataTransfer) {
+    e.dataTransfer.setData('text/plain', item.dataset.id);
+    e.dataTransfer.effectAllowed = 'move';
+  }
+});
+
+$('calendarGrid').addEventListener('dragover', (e) => {
+  if (!draggingCalendarTaskId) return;
+  const cell = e.target.closest('.cal-cell');
+  if (!cell?.dataset.date) return;
+  e.preventDefault();
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+  cell.classList.add('drop-target');
+});
+
+$('calendarGrid').addEventListener('dragleave', (e) => {
+  const cell = e.target.closest('.cal-cell');
+  if (cell) cell.classList.remove('drop-target');
+});
+
+$('calendarGrid').addEventListener('drop', async (e) => {
+  if (!draggingCalendarTaskId) return;
+  const cell = e.target.closest('.cal-cell');
+  if (!cell?.dataset.date) return;
+  e.preventDefault();
+  cell.classList.remove('drop-target');
+  const task = tasks.find((item) => item.id === draggingCalendarTaskId);
+  const date = cell.dataset.date;
+  const draggedId = draggingCalendarTaskId;
+  draggingCalendarTaskId = null;
+  suppressCalendarClick = true;
+  setTimeout(() => { suppressCalendarClick = false; }, 0);
+  if (task && task.date !== date) {
+    const result = await window.api.updateTask(draggedId, { date });
+    if (!result.ok) showToast(result.error);
+    else showToast(`已移动到 ${fmtDateCN(date) || '今天'}`);
+  }
+});
+
+$('calendarGrid').addEventListener('dragend', (e) => {
+  const item = e.target.closest('.cal-task');
+  if (item) item.classList.remove('dragging');
+  draggingCalendarTaskId = null;
+  document.querySelectorAll('.cal-cell.drop-target').forEach((cell) => cell.classList.remove('drop-target'));
+});
+
 // 日期导航
 $('prevDay').addEventListener('click', () => {
   exitSearch();
-  viewDate = addDays(viewDate, -1);
+  viewDate = calendarMode ? addMonths(viewDate, -1) : addDays(viewDate, -1);
   render();
 });
 $('nextDay').addEventListener('click', () => {
   exitSearch();
-  viewDate = addDays(viewDate, 1);
+  viewDate = calendarMode ? addMonths(viewDate, 1) : addDays(viewDate, 1);
   render();
 });
 $('todayBtn').addEventListener('click', () => {

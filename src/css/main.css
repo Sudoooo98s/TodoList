@@ -192,6 +192,17 @@ body {
   color: #fff;
 }
 
+.view-btn {
+  min-width: 34px;
+  justify-content: center;
+  font-weight: 600;
+}
+
+.view-btn.active {
+  background: #eef2ff;
+  color: var(--accent-dark);
+}
+
 /* ---------- 添加卡片 ---------- */
 .add-card {
   background: var(--card);
@@ -353,6 +364,179 @@ body {
   flex: 1;
   overflow-y: auto;
   padding-bottom: 8px;
+}
+
+/* ---------- 逾期任务 ---------- */
+.overdue-section {
+  margin-bottom: 14px;
+  border: 1px solid rgba(239, 68, 68, 0.24);
+  background: rgba(239, 68, 68, 0.05);
+  border-radius: 12px;
+  padding: 6px 8px;
+}
+
+.overdue-toggle {
+  color: var(--high);
+  font-weight: 700;
+}
+
+.overdue-list {
+  margin-top: 8px;
+}
+
+.overdue-item {
+  border-left-color: var(--high);
+}
+
+.overdue-toggle svg {
+  transition: transform 0.2s;
+}
+
+.overdue-toggle.open svg {
+  transform: rotate(180deg);
+}
+
+.overdue-list.hidden {
+  display: none !important;
+}
+
+/* ---------- 月历视图 ---------- */
+.calendar-section {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  padding: 12px;
+}
+
+.calendar-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.calendar-weekdays span {
+  color: var(--text-sub);
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.calendar-grid {
+  display: grid;
+  list-style: none;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+
+.cal-cell {
+  min-height: 94px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  padding: 5px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow: hidden;
+}
+
+.cal-cell.other-month {
+  opacity: 0.52;
+}
+
+.cal-cell.today {
+  border-color: rgba(99, 102, 231, 0.45);
+  background: rgba(99, 102, 231, 0.07);
+}
+
+.cal-cell.selected {
+  border-color: var(--accent);
+}
+
+.cal-cell.drop-target {
+  border-color: var(--accent);
+  background: rgba(99, 102, 231, 0.14);
+}
+
+.cal-day {
+  border: none;
+  background: transparent;
+  color: var(--text-sub);
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  cursor: pointer;
+}
+
+.cal-cell.today .cal-day {
+  background: var(--accent);
+  color: #fff;
+}
+
+.cal-tasks {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.cal-task {
+  border: none;
+  background: #fff;
+  color: var(--text);
+  border-radius: 6px;
+  font-size: 11px;
+  line-height: 1.25;
+  text-align: left;
+  padding: 3px 5px 3px 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: grab;
+  position: relative;
+}
+
+.cal-task::before {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 5px;
+  width: 3px;
+  height: calc(100% - 10px);
+  border-radius: 999px;
+  background: var(--text-sub);
+}
+
+.cal-task.p-high::before { background: var(--high); }
+.cal-task.p-medium::before { background: var(--medium); }
+.cal-task.p-low::before { background: var(--low); }
+
+.cal-task.done {
+  color: var(--text-sub);
+  text-decoration: line-through;
+}
+
+.cal-task.overdue {
+  background: #fff1f2;
+  color: #b91c1c;
+}
+
+.cal-task.dragging {
+  opacity: 0.55;
+}
+
+.cal-more {
+  border: none;
+  background: transparent;
+  color: var(--text-sub);
+  font-size: 10.5px;
+  text-align: left;
+  padding: 1px 4px;
+  cursor: pointer;
 }
 
 .task-list {
@@ -906,6 +1090,38 @@ textarea:focus-visible {
   .chip.date-chip {
     background: rgba(148, 163, 184, 0.15);
     color: #94a3b8;
+  }
+
+  .view-btn.active {
+    background: #2f3445;
+    color: var(--accent);
+  }
+
+  .overdue-section {
+    border-color: rgba(248, 113, 113, 0.28);
+    background: rgba(239, 68, 68, 0.09);
+  }
+
+  .cal-cell {
+    background: #171a22;
+  }
+
+  .cal-cell.today {
+    border-color: rgba(129, 140, 248, 0.5);
+    background: rgba(99, 102, 241, 0.12);
+  }
+
+  .cal-cell.drop-target {
+    background: rgba(99, 102, 241, 0.2);
+  }
+
+  .cal-task {
+    background: #262a36;
+  }
+
+  .cal-task.overdue {
+    background: rgba(239, 68, 68, 0.18);
+    color: #f87171;
   }
 
   .chip.pri-high { background: rgba(239, 68, 68, 0.16); color: #f87171; }

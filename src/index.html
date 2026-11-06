@@ -36,6 +36,8 @@
         <div class="hero-sub" id="heroSub">还剩 0 件 · 本周已完成 0 件</div>
       </div>
       <div class="date-nav">
+        <button id="dayViewBtn" class="nav-btn view-btn active" title="日视图" aria-label="切换到日视图">日</button>
+        <button id="monthViewBtn" class="nav-btn view-btn" title="月历视图" aria-label="切换到月历视图">月</button>
         <button id="prevDay" class="nav-btn" title="前一天" aria-label="查看前一天">
           <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M15.4 7.4 14 6l-6 6 6 6 1.4-1.4-4.6-4.6 4.6-4.6z"/></svg>
         </button>
@@ -112,6 +114,21 @@
     </section>
 
     <main class="content">
+      <section id="overdueSection" class="overdue-section hidden" aria-labelledby="overdueCount">
+        <button id="overdueToggle" class="done-toggle overdue-toggle">
+          <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+          <span id="overdueCount">逾期未完成 (0)</span>
+        </button>
+        <ul id="overdueList" class="task-list overdue-list"></ul>
+      </section>
+
+      <section id="calendarSection" class="calendar-section hidden" aria-label="月历视图">
+        <div class="calendar-weekdays" aria-hidden="true">
+          <span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span>
+        </div>
+        <ol id="calendarGrid" class="calendar-grid"></ol>
+      </section>
+
       <ul id="taskList" class="task-list"></ul>
       <div id="emptyState" class="empty hidden">
         <svg viewBox="0 0 24 24" width="42" height="42"><path fill="currentColor" d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg>
