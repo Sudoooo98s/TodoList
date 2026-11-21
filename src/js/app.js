@@ -179,6 +179,8 @@ function renderHeader() {
   const titleEl = $('viewTitle');
   if (calendarMode) {
     titleEl.textContent = `${monthLabel(viewDate)} · 月历`;
+  } else if (filterMode === 'archive') {
+    titleEl.textContent = activeLabel ? `归档：${activeLabel}` : '已完成归档';
   } else if (activeLabel) {
     titleEl.textContent = `标签：${activeLabel}`;
   } else if (filterMode === 'overdue') {
@@ -206,6 +208,9 @@ function renderHeader() {
     const monthTasks = tasks.filter((t) => t.date && t.date.startsWith(monthPrefix));
     const monthRemain = monthTasks.filter((t) => !t.done).length;
     $('heroSub').textContent = `本月共 ${monthTasks.length} 件 · 未完成 ${monthRemain} 件 · 本周已完成 ${weekDone} 件`;
+  } else if (filterMode === 'archive') {
+    const archiveTasks = tasks.filter((task) => task.done && matchesActiveLabel(task));
+    $('heroSub').textContent = `已归档 ${archiveTasks.length} 件 · 本周已完成 ${weekDone} 件`;
   } else if (activeLabel) {
     const labelTasks = tasks.filter(matchesActiveLabel);
     $('heroSub').textContent = `#${activeLabel} 共 ${labelTasks.length} 件 · 本周已完成 ${weekDone} 件`;
@@ -278,7 +283,9 @@ function renderList() {
   const ul = $('taskList');
   ul.innerHTML = '';
   const searchStatus = $('searchStatus');
-  const specialFilter = !searchQuery && (filterMode === 'overdue' || filterMode === 'unscheduled' || !!activeLabel);
+  const specialFilter = !searchQuery && (
+    filterMode === 'overdue' || filterMode === 'unscheduled' || filterMode === 'archive' || !!activeLabel
+  );
   const calendarVisible = calendarMode && !searchQuery;
   $('calendarSection').classList.toggle('hidden', !calendarVisible);
   ul.classList.toggle('hidden', calendarVisible || (!calendarMode && filterMode === 'unscheduled'));
@@ -333,6 +340,9 @@ function renderList() {
       matches = sortTasks(unscheduledTasks()).filter(matchesActiveLabel);
       emptyText = '无日期收件箱是空的';
       renderInbox(matches);
+    } else if (filterMode === 'archive') {
+      matches = archivedTasks().filter(matchesActiveLabel);
+      emptyText = '还没有已完成的任务';
     } else if (activeLabel) {
       matches = sortTasks(tasks.filter(matchesActiveLabel)).sort((a, b) => {
         const da = a.date || '9999-12-31';
@@ -401,6 +411,21 @@ function getOverdueTasks() {
   ));
 }
 
+function archivedTasks() {
+  const completionTime = (task) => {
+    if (Number.isFinite(task.doneAt)) return task.doneAt;
+    return task.date ? Date.parse(task.date) : 0;
+  };
+  return [...tasks]
+    .filter((task) => task.done)
+    .sort((a, b) => {
+      const aTime = completionTime(a);
+      const bTime = completionTime(b);
+      if (aTime === bTime) return a.title.localeCompare(b.title, 'zh-Hans-CN');
+      return aTime > bTime ? -1 : 1;
+    });
+}
+
 function renderOverdueSection() {
   const overdue = !searchQuery && !activeLabel && (filterMode === 'day' || filterMode === 'today')
     ? getOverdueTasks()
@@ -426,7 +451,13 @@ function renderOverdueSection() {
 function renderFilterBar() {
   const labels = allLabels();
   if (activeLabel && !labels.includes(activeLabel)) activeLabel = '';
-  const modes = { day: $('filterDay'), today: $('filterToday'), overdue: $('filterOverdue'), unscheduled: $('filterUnscheduled') };
+  const modes = {
+    day: $('filterDay'),
+    today: $('filterToday'),
+    overdue: $('filterOverdue'),
+    unscheduled: $('filterUnscheduled'),
+    archive: $('filterArchive'),
+  };
   for (const [mode, button] of Object.entries(modes)) {
     button.classList.toggle('active', !activeLabel && filterMode === mode);
   }

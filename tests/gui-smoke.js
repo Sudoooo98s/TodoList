@@ -434,6 +434,38 @@ async function run() {
     );
     assert.equal(toggled.ok, true);
 
+    const archivedHistoryTaskId = `gui-history-${Date.now()}`;
+    const archivedHistoryTask = await evaluate(
+      connection,
+      `window.api.restoreTask(${JSON.stringify({
+        id: archivedHistoryTaskId,
+        title: 'AAA GUI 历史归档',
+        date: today,
+        done: true,
+        doneAt: Date.now() - 86400000,
+      })})`
+    );
+    assert.equal(archivedHistoryTask.ok, true, JSON.stringify(archivedHistoryTask));
+    createdTaskIds.push(archivedHistoryTaskId);
+
+    await evaluate(connection, 'document.getElementById("filterArchive").click()');
+    await waitForPageExpression(
+      connection,
+      '[...document.querySelectorAll("#taskList li.task")].length === 2 && ' +
+      '[...document.querySelectorAll("#taskList li.task")].some((item) => item.dataset.id === ' +
+        JSON.stringify(repeatTask.task.id) + ' && item.classList.contains("done-item"))'
+    );
+    assert.equal(await evaluate(connection, 'document.getElementById("viewTitle").textContent'), '已完成归档');
+    assert.equal((await evaluate(connection, 'document.getElementById("heroSub").textContent')).includes('已归档 2 件'), true);
+    assert.equal(
+      await evaluate(
+        connection,
+        `[...document.querySelectorAll("#taskList li.task")].map((item) => item.dataset.id).join(",") === ` +
+        `${JSON.stringify(`${repeatTask.task.id},${archivedHistoryTaskId}`)}`
+      ),
+      true
+    );
+
     const data = await evaluate(connection, 'window.api.getData()');
     const nextRepeatTask = data.tasks.find(
       (task) =>
