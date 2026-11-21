@@ -724,6 +724,16 @@ body {
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.24), var(--shadow);
 }
 
+.task.task-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2), var(--shadow);
+}
+
+.task:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }

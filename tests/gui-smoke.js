@@ -175,6 +175,15 @@ async function run() {
       connection,
       '[...document.querySelectorAll("#taskList .task-title")].some((el) => el.textContent.trim() === "GUI 自验证任务")'
     );
+    const selectedBeforeKeyboard = await evaluate(
+      connection,
+      `(() => {
+        const item = [...document.querySelectorAll("#taskList li.task")]
+          .find((element) => element.dataset.id === ${JSON.stringify(added.task.id)});
+        return [...document.querySelectorAll("#taskList li.task")].length;
+      })()`
+    );
+    assert.equal(selectedBeforeKeyboard, 1);
     assert.equal(
       await evaluate(connection, 'document.getElementById("todaySummaryText").textContent'),
       '今日完成 0/1 · 0% · 待处理 高1 中0 低0'

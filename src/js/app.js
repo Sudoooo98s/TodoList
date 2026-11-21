@@ -13,6 +13,7 @@ let suppressCalendarClick = false;
 let filterMode = 'day';
 let activeLabel = '';
 let highlightTimer = null;
+let selectedTaskId = null;
 
 const $ = (id) => document.getElementById(id);
 
@@ -94,6 +95,44 @@ function render() {
   renderCategoryOptions();
   renderList();
   renderFloatBtnState();
+  syncTaskSelection();
+}
+
+function visibleTaskItems() {
+  return [...document.querySelectorAll('#taskList li.task, #overdueList li.task, #inboxList li.task, #doneList li.task')]
+    .filter((item) => !item.closest('.hidden'));
+}
+
+function syncTaskSelection() {
+  const items = visibleTaskItems();
+  if (selectedTaskId && !items.some((item) => item.dataset.id === selectedTaskId)) {
+    selectedTaskId = null;
+  }
+  if (!selectedTaskId && items.length > 0) {
+    selectedTaskId = items[0].dataset.id;
+  }
+  for (const item of items) {
+    const selected = item.dataset.id === selectedTaskId;
+    item.classList.toggle('task-selected', selected);
+    item.setAttribute('tabindex', selected ? '0' : '-1');
+    if (selected) {
+      item.setAttribute('aria-selected', 'true');
+    } else {
+      item.removeAttribute('aria-selected');
+    }
+  }
+}
+
+function moveTaskSelection(delta) {
+  const items = visibleTaskItems();
+  if (items.length === 0) return;
+  const currentIndex = items.findIndex((item) => item.dataset.id === selectedTaskId);
+  const nextIndex = currentIndex === -1
+    ? (delta > 0 ? 0 : items.length - 1)
+    : Math.min(items.length - 1, Math.max(0, currentIndex + delta));
+  selectedTaskId = items[nextIndex].dataset.id;
+  syncTaskSelection();
+  items[nextIndex].scrollIntoView({ block: 'nearest' });
 }
 
 function renderTodaySummary() {
@@ -992,6 +1031,45 @@ document.addEventListener('keydown', (e) => {
     } else if (editingId) {
       resetForm(); // Esc 退出编辑模式
     }
+  }
+
+  const target = e.target;
+  if (!target.matches('li.task')) return;
+  if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+  if (!document.getElementById('settingsModal').classList.contains('hidden')) return;
+
+  const key = e.key.toLowerCase();
+  const selectedTask = tasks.find((task) => task.id === selectedTaskId);
+  if (!selectedTask || !visibleTaskItems().some((item) => item.dataset.id === selectedTask.id)) return;
+
+  if (e.key === 'ArrowDown' || key === 'j') {
+    e.preventDefault();
+    moveTaskSelection(1);
+  } else if (e.key === 'ArrowUp' || key === 'k') {
+    e.preventDefault();
+    moveTaskSelection(-1);
+  } else if (e.key === ' ' || key === 'enter') {
+    e.preventDefault();
+    window.api.toggleTask(selectedTask.id);
+  } else if (key === 'e') {
+    e.preventDefault();
+    startEdit(selectedTask);
+  } else if (key === 'd') {
+    e.preventDefault();
+    window.api.deleteTask(selectedTask.id);
+  } else if (key === 'c') {
+    e.preventDefault();
+    window.api.addTask({
+      title: selectedTask.title,
+      note: selectedTask.note,
+      date: selectedTask.date,
+      time: selectedTask.time,
+      remindLead: selectedTask.time ? selectedTask.remindLead : null,
+      repeat: selectedTask.date ? selectedTask.repeat : null,
+      priority: selectedTask.priority,
+      category: selectedTask.category,
+      labels: selectedTask.labels || [],
+    });
   }
 });
 
