@@ -12,6 +12,7 @@ let draggingTaskId = null;
 let suppressCalendarClick = false;
 let filterMode = 'day';
 let activeLabel = '';
+let highlightTimer = null;
 
 const $ = (id) => document.getElementById(id);
 
@@ -78,6 +79,7 @@ function matchesActiveLabel(task) {
 const CHECK_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg>';
 const EDIT_SVG = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 0 0 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>';
 const DEL_SVG = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M6 19a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>';
+const COPY_SVG = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M16 1H4a2 2 0 0 0-2 2v14h2V3h12V1zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm0 16H8V7h11v14z"/></svg>';
 const BELL_SVG = '<svg viewBox="0 0 24 24" width="11" height="11" aria-hidden="true"><path fill="currentColor" d="M12 22a2 2 0 0 0 2-2h-4a2 2 0 0 0 2 2zm6-6v-5a6 6 0 0 0-5-5.91V4a1 1 0 1 0-2 0v1.09A6 6 0 0 0 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>';
 const CLOCK_SVG = '<svg viewBox="0 0 24 24" width="11" height="11" aria-hidden="true"><path fill="currentColor" d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm4.2 14.2L11 13V7h1.5v5.2l4.5 2.7-.8 1.3z"/></svg>';
 const REPEAT_SVG = '<svg viewBox="0 0 24 24" width="11" height="11" aria-hidden="true"><path fill="currentColor" d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-8 8s3.57 8 8 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>';
@@ -87,10 +89,50 @@ const PRI_LABEL = { high: '高', medium: '中', low: '低' };
 function render() {
   renderFilterBar();
   renderHeader();
+  renderTodaySummary();
   renderWeekChart();
   renderCategoryOptions();
   renderList();
   renderFloatBtnState();
+}
+
+function renderTodaySummary() {
+  const today = ymd(new Date());
+  const dayTasks = tasks.filter((task) => task.date === today);
+  const done = dayTasks.filter((task) => task.done).length;
+  const total = dayTasks.length;
+  const percent = total === 0 ? 0 : Math.round((done / total) * 100);
+  const pending = (priority) => dayTasks.filter((task) => !task.done && task.priority === priority).length;
+  const summaryText = total === 0
+    ? '今日暂无任务'
+    : `今日完成 ${done}/${total} · ${percent}% · 待处理 高${pending('high')} 中${pending('medium')} 低${pending('low')}`;
+  $('todayProgressBar').style.width = `${percent}%`;
+  $('todayProgress').setAttribute('aria-valuenow', String(percent));
+  $('todayProgress').setAttribute('aria-valuetext', `${percent}%`);
+  $('todaySummaryText').textContent = summaryText;
+}
+
+function focusTask(taskId) {
+  const task = tasks.find((item) => item.id === taskId);
+  if (!task) return false;
+  exitSearch();
+  activeLabel = '';
+  filterMode = 'day';
+  calendarMode = false;
+  viewDate = task.date || ymd(new Date());
+  if (task.done) doneOpen = true;
+  render();
+
+  const item = [...document.querySelectorAll('#taskList li.task, #doneList li.task, #overdueList li.task, #inboxList li.task')]
+    .find((element) => element.dataset.id === task.id);
+  if (!item) return false;
+  item.classList.add('task-highlight');
+  item.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  clearTimeout(highlightTimer);
+  highlightTimer = setTimeout(() => {
+    item.classList.remove('task-highlight');
+  }, 6000);
+  return true;
 }
 
 function renderHeader() {
@@ -188,6 +230,7 @@ function taskItemHTML(t, opts = {}) {
     </div>
     <div class="task-actions">
       <button class="icon-btn edit" data-act="edit" title="编辑" aria-label="编辑任务">${EDIT_SVG}</button>
+      <button class="icon-btn duplicate" data-act="duplicate" title="复制" aria-label="复制任务">${COPY_SVG}</button>
       <button class="icon-btn del" data-act="delete" title="删除" aria-label="删除任务">${DEL_SVG}</button>
     </div>`;
 }
@@ -328,6 +371,8 @@ function renderOverdueSection() {
   list.innerHTML = '';
   section.classList.toggle('hidden', overdue.length === 0);
   $('overdueCount').textContent = `逾期未完成 (${overdue.length})`;
+  $('overdueToToday').disabled = overdue.length === 0;
+  $('overdueToTomorrow').disabled = overdue.length === 0;
   $('overdueToggle').classList.toggle('open', overdueOpen);
   list.classList.toggle('hidden', !overdueOpen);
   for (const task of overdue) {
@@ -616,6 +661,22 @@ for (const listId of ['taskList', 'doneList', 'overdueList', 'inboxList']) {
     } else if (act === 'edit') {
       const t = tasks.find((x) => x.id === id);
       if (t) startEdit(t);
+    } else if (act === 'duplicate') {
+      const task = tasks.find((x) => x.id === id);
+      if (!task) return;
+      const result = await window.api.addTask({
+        title: task.title,
+        note: task.note,
+        date: task.date,
+        time: task.time,
+        remindLead: task.time ? task.remindLead : null,
+        repeat: task.date ? task.repeat : null,
+        priority: task.priority,
+        category: task.category,
+        labels: task.labels || [],
+      });
+      if (result.ok) showToast('已复制任务');
+      else if (result.error) showToast(result.error);
     }
   });
 }
@@ -641,6 +702,30 @@ $('filterBar').addEventListener('click', (e) => {
 $('overdueToggle').addEventListener('click', () => {
   overdueOpen = !overdueOpen;
   renderOverdueSection();
+});
+
+async function rescheduleOverdueTasks(date) {
+  const overdue = getOverdueTasks();
+  if (overdue.length === 0) return;
+  let moved = 0;
+  for (const task of overdue) {
+    const result = await window.api.updateTask(task.id, { date });
+    if (result.ok) moved += 1;
+    else if (result.error) showToast(result.error);
+  }
+  if (moved > 0) {
+    showToast(`已把 ${moved} 件逾期任务改到${date === ymd(new Date()) ? '今天' : '明天'}`);
+  }
+}
+
+document.querySelector('.overdue-actions').addEventListener('click', (event) => {
+  const button = event.target.closest('button');
+  if (!button || button.disabled) return;
+  if (button.id === 'overdueToToday') {
+    rescheduleOverdueTasks(ymd(new Date()));
+  } else if (button.id === 'overdueToTomorrow') {
+    rescheduleOverdueTasks(addDays(ymd(new Date()), 1));
+  }
 });
 
 // 月历视图切换
@@ -864,10 +949,30 @@ $('btnExport').addEventListener('click', async () => {
 });
 
 $('btnImport').addEventListener('click', async () => {
-  if (!confirm('导入备份文件将覆盖当前全部任务与设置，是否继续？')) return;
-  const res = await window.api.importData();
-  if (res.ok) showToast(`导入成功，共 ${res.count} 项任务`);
-  else if (!res.canceled && res.error) showToast(res.error);
+  const previewResult = await window.api.importData();
+  if (!previewResult.ok) {
+    if (!previewResult.canceled && previewResult.error) showToast(previewResult.error);
+    return;
+  }
+  const preview = previewResult.preview;
+  const warnings = [];
+  if (preview.invalidCount > 0) warnings.push(`将忽略 ${preview.invalidCount} 项无效任务`);
+  if (preview.duplicateIdCount > 0) warnings.push(`将重新生成 ${preview.duplicateIdCount} 个重复任务 ID`);
+  const message = [
+    `将导入 ${preview.validCount} 项任务（当前 ${preview.currentTaskCount} 项）`,
+    warnings.length ? warnings.join('\n') : null,
+    `分类：${(preview.categories || []).join('、') || '无'}`,
+    `开机自启：${preview.autoLaunch ? '开启' : '关闭'}`,
+    `自动清理：${preview.autoCleanDays === 0 ? '不清理' : `${preview.autoCleanDays} 天前`}`,
+    '\n导入会覆盖当前全部任务与设置，是否继续？',
+  ].filter(Boolean).join('\n');
+  if (!confirm(message)) {
+    await window.api.cancelImport();
+    return;
+  }
+  const imported = await window.api.confirmImport();
+  if (imported.ok) showToast(`导入成功，共 ${imported.count} 项任务`);
+  else if (imported.error) showToast(imported.error);
   $('settingsModal').classList.add('hidden');
 });
 
@@ -905,6 +1010,7 @@ async function init() {
   resetForm();
   $('fDate').value = viewDate;
   window.api.onDataChanged((payload) => applyData(payload));
+  window.api.onTaskFocus((taskId) => focusTask(taskId));
 }
 
 init();

@@ -153,6 +153,37 @@ body {
   font-size: 13px;
 }
 
+.today-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 420px;
+  margin-top: 8px;
+}
+
+.today-progress {
+  position: relative;
+  flex: 1;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(99, 102, 241, 0.16);
+  overflow: hidden;
+}
+
+.today-progress-bar {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 0.2s;
+}
+
+.today-summary-text {
+  color: var(--text-sub);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .date-nav {
   display: flex;
   gap: 4px;
@@ -420,6 +451,40 @@ body {
   padding: 6px 8px;
 }
 
+.overdue-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.overdue-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.overdue-action-btn {
+  border: 1px solid rgba(239, 68, 68, 0.28);
+  background: var(--card);
+  color: var(--high);
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 4px 9px;
+  transition: all 0.15s;
+}
+
+.overdue-action-btn:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.12);
+}
+
+.overdue-action-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
 /* ---------- 无日期收件箱 ---------- */
 .inbox-section {
   margin-bottom: 14px;
@@ -653,6 +718,11 @@ body {
 .task.p-high { border-left-color: var(--high); }
 .task.p-medium { border-left-color: var(--medium); }
 .task.p-low { border-left-color: var(--low); }
+
+.task.task-highlight {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.24), var(--shadow);
+}
 
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(4px); }

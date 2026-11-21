@@ -175,6 +175,47 @@ async function run() {
       connection,
       '[...document.querySelectorAll("#taskList .task-title")].some((el) => el.textContent.trim() === "GUI 自验证任务")'
     );
+    assert.equal(
+      await evaluate(connection, 'document.getElementById("todaySummaryText").textContent'),
+      '今日完成 0/1 · 0% · 待处理 高1 中0 低0'
+    );
+    assert.equal(await evaluate(connection, 'document.getElementById("todayProgressBar").style.width'), '0%');
+
+    await evaluate(
+      connection,
+      `(() => {
+        const item = [...document.querySelectorAll("#taskList li.task")]
+          .find((el) => el.dataset.id === ${JSON.stringify(added.task.id)});
+        item.querySelector('button[data-act="duplicate"]').click();
+        return true;
+      })()`
+    );
+    await waitForPageExpression(
+      connection,
+      `window.api.getData().then((data) => data.tasks.filter((task) => task.title === ${JSON.stringify('GUI 自验证任务')}).length === 2)`
+    );
+    await waitForPageExpression(
+      connection,
+      'document.getElementById("todaySummaryText").textContent === "今日完成 0/2 · 0% · 待处理 高2 中0 低0"'
+    );
+    const dataAfterDuplicate = await evaluate(connection, 'window.api.getData()');
+    const duplicatedTask = dataAfterDuplicate.tasks.find(
+      (task) => task.title === 'GUI 自验证任务' && task.id !== added.task.id
+    );
+    assert.ok(duplicatedTask, 'Duplicated task was not created');
+    assert.equal(duplicatedTask.date, today);
+    assert.equal(duplicatedTask.priority, 'high');
+    assert.equal(duplicatedTask.category, '工作');
+    assert.equal(duplicatedTask.note, '冒烟测试');
+    const deletedDuplicate = await evaluate(
+      connection,
+      `window.api.deleteTask(${JSON.stringify(duplicatedTask.id)})`
+    );
+    assert.equal(deletedDuplicate.ok, true, JSON.stringify(deletedDuplicate));
+    await waitForPageExpression(
+      connection,
+      `window.api.getData().then((data) => data.tasks.filter((task) => task.title === ${JSON.stringify('GUI 自验证任务')}).length === 1)`
+    );
 
     const overdueTask = await evaluate(
       connection,
@@ -194,6 +235,15 @@ async function run() {
     assert.equal(
       await evaluate(connection, '!document.getElementById("overdueSection").classList.contains("hidden")'),
       true
+    );
+    await evaluate(connection, 'document.getElementById("overdueToToday").click()');
+    await waitForPageExpression(
+      connection,
+      `window.api.getData().then((data) => data.tasks.find((task) => task.id === ${JSON.stringify(overdueTask.task.id)})?.date === ${JSON.stringify(today)})`
+    );
+    await waitForPageExpression(
+      connection,
+      '[...document.querySelectorAll("#taskList .task-title")].some((el) => el.textContent.trim() === "GUI 逾期自验证")'
     );
 
     const unscheduledTask = await evaluate(
@@ -325,6 +375,14 @@ async function run() {
       ),
       false
     );
+
+    await evaluate(connection, `window.api.focusTask(${JSON.stringify(added.task.id)}); true`);
+    await waitForPageExpression(
+      connection,
+      '[...document.querySelectorAll("#taskList li.task")].some((el) => el.dataset.id === ' +
+        JSON.stringify(added.task.id) + ' && el.classList.contains("task-highlight"))'
+    );
+    assert.equal(await evaluate(connection, 'document.getElementById("searchInput").value'), '');
 
     await evaluate(connection, 'document.getElementById("btnSettings").click()');
     assert.equal(

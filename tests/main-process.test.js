@@ -465,7 +465,19 @@ test('import and export IPC normalize data and sync auto launch', async () => {
   assert.equal(exportPayload.tasks.length, 1);
   assert.deepEqual(exportPayload.settings.categories, ['工作']);
 
-  const imported = await ipcHandlers.get('data:import')();
+  const preview = await ipcHandlers.get('data:import')();
+  assert.equal(preview.ok, true);
+  assert.equal(preview.preview.rawCount, 2);
+  assert.equal(preview.preview.validCount, 2);
+  assert.equal(preview.preview.invalidCount, 0);
+  assert.equal(preview.preview.duplicateIdCount, 1);
+  assert.equal(preview.preview.currentTaskCount, 1);
+  assert.deepEqual(JSON.parse(JSON.stringify(preview.preview.categories)), ['工作', '生活']);
+  assert.equal(preview.preview.autoLaunch, true);
+  assert.equal(preview.preview.autoCleanDays, 0);
+  assert.equal(main.payload().tasks.length, 1);
+
+  const imported = await ipcHandlers.get('data:import-confirm')();
   assert.equal(imported.ok, true);
   assert.equal(imported.count, 2);
   const loaded = main.payload();
@@ -475,6 +487,32 @@ test('import and export IPC normalize data and sync auto launch', async () => {
   assert.equal(loaded.settings.autoLaunch, true);
   assert.equal(loaded.settings.autoCleanDays, 0);
   assert.deepEqual(JSON.parse(JSON.stringify(loginSettings)), [{ openAtLogin: true }]);
+});
+
+test('import preview can be canceled without overwriting current data', async () => {
+  const importPath = '/tmp/dailylist-test/dailylist-cancel-import.json';
+  const fsMock = createMemoryFs({
+    [DATA_FILE]: JSON.stringify({ tasks: [{ id: 'current', title: '当前任务' }] }),
+    [importPath]: JSON.stringify({ tasks: [{ id: 'incoming', title: '导入任务' }] }),
+  });
+  const dialogMock = {
+    showOpenDialog: async () => ({ canceled: false, filePaths: [importPath] }),
+  };
+  const { main, ipcHandlers } = loadMainProcess({ fsMock, dialogMock });
+  main.loadData();
+  main.registerIpc();
+
+  const preview = await ipcHandlers.get('data:import')();
+  assert.equal(preview.ok, true);
+  assert.equal(preview.preview.validCount, 1);
+  assert.equal(main.payload().tasks[0].id, 'current');
+
+  const canceled = await ipcHandlers.get('data:import-cancel')();
+  assert.equal(canceled.ok, true);
+  const confirmed = await ipcHandlers.get('data:import-confirm')();
+  assert.equal(confirmed.ok, false);
+  assert.equal(main.payload().tasks.length, 1);
+  assert.equal(main.payload().tasks[0].id, 'current');
 });
 
 test('canceling a completed repeating task removes only its generated next instance', async () => {

@@ -32,6 +32,7 @@ let saveTimer = null;
 let floatBoundsTimer = null;
 let lastDay = null; // 用于跨天检测
 let lastSaveError = null;
+let pendingImport = null;
 
 // ---------- 数据存储 ----------
 function loadData() {
@@ -187,6 +188,25 @@ function normalizeData(parsed) {
   return {
     tasks,
     settings: normalizeSettings(p.settings),
+  };
+}
+
+function buildImportPreview(parsed) {
+  const rawTasks = Array.isArray(parsed.tasks) ? parsed.tasks : [];
+  const validRawTasks = rawTasks.filter((task) => task && typeof task === 'object' && String(task.title || '').trim());
+  const ids = validRawTasks
+    .map((task) => task.id)
+    .filter((id) => typeof id === 'string' && id);
+  const settings = normalizeSettings(parsed.settings);
+  return {
+    rawCount: rawTasks.length,
+    validCount: validRawTasks.length,
+    invalidCount: rawTasks.length - validRawTasks.length,
+    duplicateIdCount: ids.length - new Set(ids).size,
+    currentTaskCount: data.tasks.length,
+    categories: settings.categories,
+    autoLaunch: settings.autoLaunch,
+    autoCleanDays: settings.autoCleanDays,
   };
 }
 
@@ -355,6 +375,12 @@ function showMain() {
   mainWindow.focus();
 }
 
+function focusTask(taskId) {
+  if (typeof taskId !== 'string' || !data.tasks.some((task) => task.id === taskId)) return;
+  showMain();
+  mainWindow.webContents.send('task:focus', taskId);
+}
+
 // ---------- 悬浮窗 ----------
 function createFloatWindow() {
   const { width: sw, height: sh } = screen.getPrimaryDisplay().workAreaSize;
@@ -479,7 +505,7 @@ function tickReminders(resumeGrace = false) {
           body: `${leadText}：${t.title}（${t.time}）`,
           icon: ICON_PATH,
         });
-        n.on('click', () => showMain());
+        n.on('click', () => focusTask(t.id));
         n.show();
       }
     }
@@ -665,7 +691,7 @@ function registerIpc() {
     }
   });
 
-  // 从 JSON 备份文件导入并覆盖当前数据
+  // 选择 JSON 备份文件并生成导入预览，不立即覆盖当前数据
   ipcMain.handle('data:import', async () => {
     const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
       title: '导入数据',
@@ -678,7 +704,24 @@ function registerIpc() {
       if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.tasks)) {
         return { ok: false, error: '文件格式不正确：缺少有效的 tasks 数组' };
       }
+      pendingImport = parsed;
+      return { ok: true, preview: buildImportPreview(parsed) };
+    } catch (err) {
+      return { ok: false, error: '导入失败：' + err.message };
+    }
+  });
+
+  ipcMain.handle('data:import-cancel', () => {
+    pendingImport = null;
+    return { ok: true };
+  });
+
+  ipcMain.handle('data:import-confirm', async () => {
+    if (!pendingImport) return { ok: false, error: '没有待导入的数据' };
+    const parsed = pendingImport;
+    try {
       data = normalizeData(parsed);
+      pendingImport = null;
       app.setLoginItemSettings({ openAtLogin: !!data.settings.autoLaunch });
       lastDay = ymd(new Date());
       rolloverRepeatingTasks();
@@ -687,6 +730,7 @@ function registerIpc() {
       broadcast();
       return { ok: true, count: data.tasks.length };
     } catch (err) {
+      pendingImport = null;
       return { ok: false, error: '导入失败：' + err.message };
     }
   });
@@ -711,6 +755,10 @@ function registerIpc() {
   });
 
   ipcMain.on('win:show', () => showMain());
+  ipcMain.on('task:focus', (event, taskId) => {
+    if (event.sender !== mainWindow?.webContents) return;
+    focusTask(taskId);
+  });
   ipcMain.on('win:hide', () => mainWindow && mainWindow.hide());
   ipcMain.on('win:minimize', () => mainWindow && mainWindow.minimize());
 }

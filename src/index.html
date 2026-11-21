@@ -34,6 +34,12 @@
       <div class="hero-left">
         <h1 id="viewTitle">今天要做的事</h1>
         <div class="hero-sub" id="heroSub">还剩 0 件 · 本周已完成 0 件</div>
+        <div class="today-summary">
+          <div id="todayProgress" class="today-progress" role="progressbar" aria-labelledby="todaySummaryText" aria-valuemin="0" aria-valuemax="100">
+            <div id="todayProgressBar" class="today-progress-bar"></div>
+          </div>
+          <span id="todaySummaryText" class="today-summary-text">今日暂无任务</span>
+        </div>
       </div>
       <div class="date-nav">
         <button id="dayViewBtn" class="nav-btn view-btn active" title="日视图" aria-label="切换到日视图">日</button>
@@ -136,10 +142,16 @@
       </section>
 
       <section id="overdueSection" class="overdue-section hidden" aria-labelledby="overdueCount">
-        <button id="overdueToggle" class="done-toggle overdue-toggle">
-          <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
-          <span id="overdueCount">逾期未完成 (0)</span>
-        </button>
+        <div class="overdue-head">
+          <button id="overdueToggle" class="done-toggle overdue-toggle">
+            <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+            <span id="overdueCount">逾期未完成 (0)</span>
+          </button>
+          <div class="overdue-actions">
+            <button id="overdueToToday" class="overdue-action-btn" type="button">全部改到今天</button>
+            <button id="overdueToTomorrow" class="overdue-action-btn" type="button">全部改到明天</button>
+          </div>
+        </div>
         <ul id="overdueList" class="task-list overdue-list"></ul>
       </section>
 
