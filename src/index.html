@@ -130,8 +130,20 @@
       <button id="filterOverdue" class="filter-btn" type="button" data-filter="overdue">逾期</button>
       <button id="filterUnscheduled" class="filter-btn" type="button" data-filter="unscheduled">无日期</button>
       <button id="filterArchive" class="filter-btn" type="button" data-filter="archive">归档</button>
+      <button id="batchToggle" class="filter-btn" type="button" data-batch-toggle>批量</button>
       <span id="labelFilters" class="label-filters"></span>
     </nav>
+
+    <section id="batchBar" class="batch-bar hidden" aria-live="polite">
+      <span id="batchCount" class="batch-count">已选 0 件</span>
+      <div class="batch-actions">
+        <button id="batchSelectAll" class="ghost-btn" type="button">全选</button>
+        <button id="batchSetDone" class="ghost-btn" type="button">标为完成</button>
+        <button id="batchSetUndone" class="ghost-btn" type="button">标为未完成</button>
+        <button id="batchDelete" class="ghost-btn danger" type="button">删除</button>
+        <button id="batchExit" class="ghost-btn" type="button">退出批量</button>
+      </div>
+    </section>
 
     <main class="content">
       <section id="inboxSection" class="inbox-section hidden" aria-labelledby="inboxCount">

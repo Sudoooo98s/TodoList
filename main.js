@@ -516,6 +516,47 @@ function tickReminders(resumeGrace = false) {
   }
 }
 
+function setTaskDone(task, done) {
+  task.done = done;
+  task.doneAt = done ? Date.now() : null;
+  if (task.done && task.repeat) {
+    const nextDate = nextRepeatDate(task.date, task.repeat);
+    const exists = data.tasks.some(
+      (x) =>
+        x.repeat === task.repeat &&
+        x.title === task.title &&
+        x.date === nextDate &&
+        x.time === task.time &&
+        x.category === task.category &&
+        !x.done
+    );
+    if (!exists) {
+      data.tasks.push({
+        ...task,
+        id: generateTaskId('r'),
+        date: nextDate,
+        done: false,
+        doneAt: null,
+        reminded: false,
+        createdAt: Date.now(),
+        repeatSourceId: task.id,
+      });
+    }
+  }
+  if (!task.done && task.repeat) {
+    const nextDate = nextRepeatDate(task.date, task.repeat);
+    data.tasks = data.tasks.filter((item) => !(
+      item.repeatSourceId === task.id &&
+      !item.done &&
+      item.repeat === task.repeat &&
+      item.title === task.title &&
+      item.date === nextDate &&
+      item.time === task.time &&
+      item.category === task.category
+    ));
+  }
+}
+
 // ---------- IPC ----------
 function registerIpc() {
   ipcMain.handle('data:get', () => payload());
@@ -596,47 +637,37 @@ function registerIpc() {
   ipcMain.handle('task:toggle', (e, id) => {
     const t = data.tasks.find((x) => x.id === id);
     if (!t) return { ok: false, error: '任务不存在' };
-    t.done = !t.done;
-    t.doneAt = t.done ? Date.now() : null;
-      // 完成重复任务时生成下一次实例（同名但时间/分类不同的任务不合并）
-    if (t.done && t.repeat) {
-      const nextDate = nextRepeatDate(t.date, t.repeat);
-      const exists = data.tasks.some(
-          (x) =>
-            x.repeat === t.repeat &&
-            x.title === t.title &&
-            x.date === nextDate &&
-            x.time === t.time &&
-            x.category === t.category &&
-            !x.done
-      );
-      if (!exists) {
-        data.tasks.push({
-          ...t,
-            id: generateTaskId('r'),
-          date: nextDate,
-          done: false,
-          doneAt: null,
-          reminded: false,
-          createdAt: Date.now(),
-          repeatSourceId: t.id,
-        });
-      }
-    }
-    if (!t.done && t.repeat) {
-      data.tasks = data.tasks.filter((task) => !(
-        task.repeatSourceId === t.id &&
-        !task.done &&
-        task.repeat === t.repeat &&
-        task.title === t.title &&
-        task.date === nextRepeatDate(t.date, t.repeat) &&
-        task.time === t.time &&
-        task.category === t.category
-      ));
-    }
+    setTaskDone(t, !t.done);
     scheduleSave();
     broadcast();
     return { ok: true, task: t };
+  });
+
+  ipcMain.handle('task:batch-set-done', (e, request) => {
+    const source = request && typeof request === 'object' ? request : {};
+    const ids = Array.isArray(source.ids)
+      ? [...new Set(source.ids.filter((id) => typeof id === 'string'))]
+      : [];
+    if (ids.length === 0) return { ok: false, error: '请选择任务' };
+
+    const done = !!source.done;
+    let count = 0;
+    const missingIds = [];
+    for (const id of ids) {
+      const task = data.tasks.find((item) => item.id === id);
+      if (!task) {
+        missingIds.push(id);
+        continue;
+      }
+      if (task.done === done) continue;
+      setTaskDone(task, done);
+      count += 1;
+    }
+    if (count > 0) {
+      scheduleSave();
+      broadcast();
+    }
+    return { ok: true, count, missingIds };
   });
 
   // 撤销删除：恢复前统一规范化，避免非法或重复 ID 数据重新入库
@@ -661,6 +692,24 @@ function registerIpc() {
       broadcast();
     }
     return { ok: true };
+  });
+
+  ipcMain.handle('task:batch-delete', (e, ids) => {
+    const uniqueIds = Array.isArray(ids)
+      ? [...new Set(ids.filter((id) => typeof id === 'string'))]
+      : [];
+    if (uniqueIds.length === 0) return { ok: false, error: '请选择任务' };
+
+    const idSet = new Set(uniqueIds);
+    const missingIds = uniqueIds.filter((id) => !data.tasks.some((task) => task.id === id));
+    const before = data.tasks.length;
+    data.tasks = data.tasks.filter((task) => !idSet.has(task.id));
+    const count = before - data.tasks.length;
+    if (count > 0) {
+      scheduleSave();
+      broadcast();
+    }
+    return { ok: true, count, missingIds };
   });
 
   ipcMain.handle('settings:set', (e, patch) => {

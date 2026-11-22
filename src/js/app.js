@@ -14,6 +14,8 @@ let filterMode = 'day';
 let activeLabel = '';
 let highlightTimer = null;
 let selectedTaskId = null;
+let batchMode = false;
+const batchSelectedIds = new Set();
 
 const $ = (id) => document.getElementById(id);
 
@@ -94,6 +96,7 @@ function render() {
   renderWeekChart();
   renderCategoryOptions();
   renderList();
+  renderBatchBar();
   renderFloatBtnState();
   syncTaskSelection();
 }
@@ -101,6 +104,28 @@ function render() {
 function visibleTaskItems() {
   return [...document.querySelectorAll('#taskList li.task, #overdueList li.task, #inboxList li.task, #doneList li.task')]
     .filter((item) => !item.closest('.hidden'));
+}
+
+function visibleBatchTaskIds() {
+  return [...new Set(visibleTaskItems().map((item) => item.dataset.id))];
+}
+
+function renderBatchBar() {
+  const visibleIds = new Set(visibleBatchTaskIds());
+  for (const id of [...batchSelectedIds]) {
+    if (!visibleIds.has(id)) batchSelectedIds.delete(id);
+  }
+  const selectedTasks = tasks.filter((task) => batchSelectedIds.has(task.id));
+  const bar = $('batchBar');
+  bar.classList.toggle('hidden', !batchMode);
+  $('batchToggle').classList.toggle('active', batchMode);
+  $('batchCount').textContent = `已选 ${batchSelectedIds.size} 件`;
+  const allSelected = visibleIds.size > 0 && [...visibleIds].every((id) => batchSelectedIds.has(id));
+  $('batchSelectAll').textContent = allSelected ? '清空选择' : '全选';
+  $('batchSelectAll').disabled = visibleIds.size === 0;
+  $('batchSetDone').disabled = selectedTasks.every((task) => task.done);
+  $('batchSetUndone').disabled = selectedTasks.every((task) => !task.done);
+  $('batchDelete').disabled = batchSelectedIds.size === 0;
 }
 
 function syncTaskSelection() {
@@ -266,6 +291,7 @@ function taskItemHTML(t, opts = {}) {
     ? `<div class="task-note">${escapeHTML(t.note)}</div>`
     : '';
   return `
+    ${opts.showBatchSelect ? `<button class="batch-select${opts.batchSelected ? ' selected' : ''}" data-act="batch-toggle" type="button" title="选择任务" aria-label="选择任务" aria-pressed="${!!opts.batchSelected}">${CHECK_SVG}</button>` : ''}
     <button class="check" data-act="toggle" title="完成/取消完成" aria-label="完成或取消完成任务">${CHECK_SVG}</button>
     <div class="task-body">
       <div class="task-title">${escapeHTML(t.title)}</div>
@@ -316,7 +342,11 @@ function renderList() {
       const li = document.createElement('li');
       li.className = `task p-${t.priority}` + (t.done ? ' done-item' : '');
       li.dataset.id = t.id;
-      li.innerHTML = taskItemHTML(t, { showDate: true });
+      li.innerHTML = taskItemHTML(t, {
+        showDate: true,
+        showBatchSelect: batchMode,
+        batchSelected: batchSelectedIds.has(t.id),
+      });
       ul.appendChild(li);
     }
     $('emptyState').classList.toggle('hidden', matches.length > 0);
@@ -355,7 +385,11 @@ function renderList() {
       const li = document.createElement('li');
       li.className = `task p-${t.priority}` + (t.done ? ' done-item' : '');
       li.dataset.id = t.id;
-      li.innerHTML = taskItemHTML(t, { showDate: filterMode !== 'unscheduled' });
+      li.innerHTML = taskItemHTML(t, {
+        showDate: filterMode !== 'unscheduled',
+        showBatchSelect: batchMode,
+        batchSelected: batchSelectedIds.has(t.id),
+      });
       ul.appendChild(li);
     }
     $('emptyState').classList.toggle('hidden', matches.length > 0);
@@ -375,7 +409,10 @@ function renderList() {
     const li = document.createElement('li');
     li.className = `task p-${t.priority}`;
     li.dataset.id = t.id;
-    li.innerHTML = taskItemHTML(t);
+    li.innerHTML = taskItemHTML(t, {
+      showBatchSelect: batchMode,
+      batchSelected: batchSelectedIds.has(t.id),
+    });
     ul.appendChild(li);
   }
 
@@ -396,7 +433,10 @@ function renderList() {
       const li = document.createElement('li');
       li.className = `task done-item p-${t.priority}`;
       li.dataset.id = t.id;
-      li.innerHTML = taskItemHTML(t);
+      li.innerHTML = taskItemHTML(t, {
+        showBatchSelect: batchMode,
+        batchSelected: batchSelectedIds.has(t.id),
+      });
       dul.appendChild(li);
     }
   } else {
@@ -443,7 +483,12 @@ function renderOverdueSection() {
     const li = document.createElement('li');
     li.className = `task overdue-item p-${task.priority}`;
     li.dataset.id = task.id;
-    li.innerHTML = taskItemHTML(task, { showDate: true, showOverdue: true });
+    li.innerHTML = taskItemHTML(task, {
+      showDate: true,
+      showOverdue: true,
+      showBatchSelect: batchMode,
+      batchSelected: batchSelectedIds.has(task.id),
+    });
     list.appendChild(li);
   }
 }
@@ -485,7 +530,10 @@ function renderInbox(list) {
     const li = document.createElement('li');
     li.className = `task inbox-item p-${task.priority}` + (task.done ? ' done-item' : '');
     li.dataset.id = task.id;
-    li.innerHTML = taskItemHTML(task);
+    li.innerHTML = taskItemHTML(task, {
+      showBatchSelect: batchMode,
+      batchSelected: batchSelectedIds.has(task.id),
+    });
     li.draggable = true;
     inboxList.appendChild(li);
   }
@@ -718,6 +766,10 @@ for (const listId of ['taskList', 'doneList', 'overdueList', 'inboxList']) {
     if (!btn) return;
     const id = li.dataset.id;
     const act = btn.dataset.act;
+    if (batchMode) {
+      if (act === 'batch-toggle') toggleBatchSelection(id);
+      return;
+    }
     if (act === 'toggle') {
       await window.api.toggleTask(id);
     } else if (act === 'delete') {
@@ -754,6 +806,7 @@ for (const listId of ['taskList', 'doneList', 'overdueList', 'inboxList']) {
 $('filterBar').addEventListener('click', (e) => {
   const button = e.target.closest('button');
   if (!button) return;
+  if (button.dataset.batchToggle !== undefined) return;
   exitSearch();
   if (button.dataset.label) {
     activeLabel = activeLabel === button.dataset.label ? '' : button.dataset.label;
@@ -768,10 +821,68 @@ $('filterBar').addEventListener('click', (e) => {
   render();
 });
 
+function setBatchMode(enabled) {
+  batchMode = enabled;
+  batchSelectedIds.clear();
+  if (batchMode && calendarMode) {
+    calendarMode = false;
+    filterMode = 'day';
+  }
+  render();
+}
+
+function toggleBatchSelection(id) {
+  if (batchSelectedIds.has(id)) batchSelectedIds.delete(id);
+  else batchSelectedIds.add(id);
+  render();
+}
+
+function toggleAllVisibleBatchTasks() {
+  const ids = visibleBatchTaskIds();
+  const allSelected = ids.length > 0 && ids.every((id) => batchSelectedIds.has(id));
+  batchSelectedIds.clear();
+  if (!allSelected) ids.forEach((id) => batchSelectedIds.add(id));
+  render();
+}
+
+async function batchSetDone(done) {
+  if (batchSelectedIds.size === 0) return;
+  const result = await window.api.batchSetTaskDone([...batchSelectedIds], done);
+  if (!result.ok) {
+    if (result.error) showToast(result.error);
+    return;
+  }
+  batchSelectedIds.clear();
+  render();
+  showToast(`已将 ${result.count} 件任务标为${done ? '完成' : '未完成'}`);
+}
+
+async function batchDelete() {
+  if (batchSelectedIds.size === 0) return;
+  const deletedTasks = tasks.filter((task) => batchSelectedIds.has(task.id));
+  if (!confirm(`确定删除选中的 ${deletedTasks.length} 件任务吗？`)) return;
+  const result = await window.api.batchDeleteTasks([...batchSelectedIds]);
+  if (!result.ok) {
+    if (result.error) showToast(result.error);
+    return;
+  }
+  batchSelectedIds.clear();
+  render();
+  showToast(`已删除 ${result.count} 件任务`);
+}
+
+$('batchToggle').addEventListener('click', () => setBatchMode(!batchMode));
+$('batchSelectAll').addEventListener('click', toggleAllVisibleBatchTasks);
+$('batchSetDone').addEventListener('click', () => batchSetDone(true));
+$('batchSetUndone').addEventListener('click', () => batchSetDone(false));
+$('batchDelete').addEventListener('click', batchDelete);
+$('batchExit').addEventListener('click', () => setBatchMode(false));
+
 // 逾期折叠
 $('overdueToggle').addEventListener('click', () => {
   overdueOpen = !overdueOpen;
   renderOverdueSection();
+  renderBatchBar();
 });
 
 async function rescheduleOverdueTasks(date) {
@@ -923,6 +1034,7 @@ function exitSearch() {
 $('doneToggle').addEventListener('click', () => {
   doneOpen = !doneOpen;
   renderList();
+  renderBatchBar();
 });
 
 // 悬浮窗开关
@@ -934,12 +1046,14 @@ $('btnFloat').addEventListener('click', () => {
 $('searchInput').addEventListener('input', (e) => {
   searchQuery = e.target.value.trim().toLowerCase();
   renderList();
+  renderBatchBar();
 });
 $('searchInput').addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     e.stopPropagation();
     exitSearch();
     renderList();
+    renderBatchBar();
     e.target.blur();
   }
 });
@@ -1059,9 +1173,19 @@ document.addEventListener('keydown', (e) => {
   } else if (e.key === 'Escape') {
     if (!$('settingsModal').classList.contains('hidden')) {
       $('settingsModal').classList.add('hidden');
+    } else if (batchMode) {
+      setBatchMode(false);
     } else if (editingId) {
       resetForm(); // Esc 退出编辑模式
     }
+  }
+
+  if (batchMode) {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a' && !e.target.matches('input, textarea, select')) {
+      e.preventDefault();
+      toggleAllVisibleBatchTasks();
+    }
+    return;
   }
 
   const target = e.target;

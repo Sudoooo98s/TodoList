@@ -400,6 +400,83 @@ async function run() {
     );
     await evaluate(connection, 'document.getElementById("closeSettings").click()');
 
+    await evaluate(connection, 'document.getElementById("filterToday").click()');
+    const firstBatchTask = await evaluate(
+      connection,
+      `window.api.addTask(${JSON.stringify({ title: 'GUI 批量一', date: today, priority: 'low' })})`
+    );
+    const secondBatchTask = await evaluate(
+      connection,
+      `window.api.addTask(${JSON.stringify({ title: 'GUI 批量二', date: today, priority: 'low' })})`
+    );
+    assert.equal(firstBatchTask.ok, true, JSON.stringify(firstBatchTask));
+    assert.equal(secondBatchTask.ok, true, JSON.stringify(secondBatchTask));
+    createdTaskIds.push(firstBatchTask.task.id, secondBatchTask.task.id);
+    await waitForPageExpression(
+      connection,
+      `[...document.querySelectorAll("#taskList li.task")].filter((item) => ["${firstBatchTask.task.id}", "${secondBatchTask.task.id}"].includes(item.dataset.id)).length === 2`
+    );
+
+    await evaluate(connection, 'document.getElementById("batchToggle").click()');
+    await waitForPageExpression(
+      connection,
+      '!document.getElementById("batchBar").classList.contains("hidden") && document.getElementById("batchCount").textContent === "已选 0 件"'
+    );
+    for (const taskId of [firstBatchTask.task.id, secondBatchTask.task.id]) {
+      await evaluate(
+        connection,
+        `document.querySelector(${JSON.stringify(`#taskList li.task[data-id="${taskId}"] .batch-select`)}).click()`
+      );
+    }
+    await waitForPageExpression(
+      connection,
+      'document.getElementById("batchCount").textContent === "已选 2 件"'
+    );
+    await evaluate(connection, 'document.getElementById("batchSetDone").click()');
+    await waitForPageExpression(
+      connection,
+      `window.api.getData().then((data) => ["${firstBatchTask.task.id}", "${secondBatchTask.task.id}"].every((id) => data.tasks.find((task) => task.id === id)?.done === true))`
+    );
+
+    await evaluate(connection, 'document.getElementById("doneToggle").click()');
+    await waitForPageExpression(
+      connection,
+      '[...document.querySelectorAll("#doneList li.task")].length >= 2'
+    );
+    for (const taskId of [firstBatchTask.task.id, secondBatchTask.task.id]) {
+      await evaluate(
+        connection,
+        `document.querySelector(${JSON.stringify(`#doneList li.task[data-id="${taskId}"] .batch-select`)}).click()`
+      );
+    }
+    await waitForPageExpression(
+      connection,
+      'document.getElementById("batchCount").textContent === "已选 2 件"'
+    );
+    await evaluate(connection, 'document.getElementById("batchSetUndone").click()');
+    await waitForPageExpression(
+      connection,
+      `window.api.getData().then((data) => ["${firstBatchTask.task.id}", "${secondBatchTask.task.id}"].every((id) => data.tasks.find((task) => task.id === id)?.done === false))`
+    );
+
+    for (const taskId of [firstBatchTask.task.id, secondBatchTask.task.id]) {
+      await evaluate(
+        connection,
+        `document.querySelector(${JSON.stringify(`#taskList li.task[data-id="${taskId}"] .batch-select`)}).click()`
+      );
+    }
+    await evaluate(connection, 'window.confirm = () => true; true');
+    await evaluate(connection, 'document.getElementById("batchDelete").click()');
+    await waitForPageExpression(
+      connection,
+      `window.api.getData().then((data) => data.tasks.some((task) => ["${firstBatchTask.task.id}", "${secondBatchTask.task.id}"].includes(task.id)) === false)`
+    );
+    await evaluate(connection, 'document.getElementById("batchExit").click()');
+    await waitForPageExpression(
+      connection,
+      'document.getElementById("batchBar").classList.contains("hidden")'
+    );
+
     const invalidReminderUpdate = await evaluate(
       connection,
       `window.api.updateTask(${JSON.stringify(added.task.id)}, { remindLead: "invalid" })`

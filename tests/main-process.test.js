@@ -568,6 +568,52 @@ test('canceling a completed repeating task removes only its generated next insta
   assert.equal(tasks.filter((task) => task.title === '手工下一实例').length, 2);
 });
 
+test('batch task operations validate ids and change tasks atomically', async () => {
+  const fsMock = createMemoryFs({
+    [DATA_FILE]: JSON.stringify({
+      tasks: [
+        { id: 'batch-a', title: '批量任务一' },
+        { id: 'batch-b', title: '批量任务二' },
+      ],
+      settings: {},
+    }),
+  });
+  const { main, ipcHandlers } = loadMainProcess({ fsMock });
+  main.loadData();
+  main.registerIpc();
+
+  const completed = await ipcHandlers.get('task:batch-set-done')(
+    null,
+    { ids: ['batch-a', 'batch-b', 'missing', 123], done: true }
+  );
+  assert.equal(completed.ok, true);
+  assert.equal(completed.count, 2);
+  assert.deepEqual(JSON.parse(JSON.stringify(completed.missingIds)), ['missing']);
+  assert.equal(main.payload().tasks.every((task) => task.done), true);
+  assert.ok(main.payload().tasks.every((task) => Number.isFinite(task.doneAt)));
+
+  const restored = await ipcHandlers.get('task:batch-set-done')(
+    null,
+    { ids: ['batch-a', 'batch-b'], done: false }
+  );
+  assert.equal(restored.ok, true);
+  assert.equal(restored.count, 2);
+  assert.equal(main.payload().tasks.every((task) => !task.done), true);
+
+  const deleted = await ipcHandlers.get('task:batch-delete')(
+    null,
+    ['batch-a', 'batch-b', 'missing']
+  );
+  assert.equal(deleted.ok, true);
+  assert.equal(deleted.count, 2);
+  assert.deepEqual(JSON.parse(JSON.stringify(deleted.missingIds)), ['missing']);
+  assert.equal(main.payload().tasks.length, 0);
+
+  const emptyDelete = await ipcHandlers.get('task:batch-delete')(null, []);
+  assert.equal(emptyDelete.ok, false);
+  assert.equal(emptyDelete.error, '请选择任务');
+});
+
 test('macOS uses a standard application menu', () => {
   const { main, applicationMenus } = loadMainProcess({ platform: 'darwin' });
   main.createApplicationMenu();

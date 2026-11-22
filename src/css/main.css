@@ -276,6 +276,42 @@ body {
   font-weight: 700;
 }
 
+.batch-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 8px 10px;
+  margin: -4px 0 14px;
+  box-shadow: var(--shadow);
+}
+
+.batch-count {
+  color: var(--text-sub);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.batch-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.batch-actions .ghost-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.ghost-btn.danger:hover {
+  color: var(--high);
+  border-color: var(--high);
+}
+
 .label-filters {
   display: flex;
   align-items: center;
@@ -763,6 +799,38 @@ body {
 .check svg {
   width: 13px;
   height: 13px;
+}
+
+.batch-select {
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  margin-top: 3px;
+  border: 2px solid #c9cdd8;
+  border-radius: 5px;
+  background: transparent;
+  color: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: all 0.15s;
+}
+
+.batch-select:hover {
+  border-color: var(--accent);
+}
+
+.batch-select.selected {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.batch-select svg {
+  width: 12px;
+  height: 12px;
 }
 
 .task.done-item .check {
@@ -1317,6 +1385,10 @@ textarea:focus-visible {
   .chip.repeat-chip { background: rgba(20, 184, 166, 0.18); color: #2dd4bf; }
 
   .check {
+    border-color: #3a3f50;
+  }
+
+  .batch-select {
     border-color: #3a3f50;
   }
 
